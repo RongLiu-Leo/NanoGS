@@ -5,7 +5,7 @@ import { PackedSplats } from "@sparkjsdev/spark";
 const TWO_PI_POW_1P5 = Math.pow(2.0 * Math.PI, 1.5);
 const LOG2PI = Math.log(2.0 * Math.PI);
 
-export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
+export async function simplifyMesh(mesh, params = {}, onStatus = () => {}, onProgress = () => {}) {
   if (!mesh) throw new Error("simplifyMesh: mesh is required.");
   if (mesh.initialized) await mesh.initialized;
 
@@ -22,6 +22,7 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
     seed: Math.floor(Number(params.seed ?? 0)),
     epsCov: Number(params.epsCov ?? 1e-8),
   };
+  const keepHistory = params.keepHistory !== false;
 
   if (!(rp.ratio > 0 && rp.ratio < 1)) {
     throw new Error("ratio must be in (0, 1).");
@@ -34,7 +35,29 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
   const target = Math.max(Math.ceil(N0 * rp.ratio), 1);
   onStatus(`Loaded ${N0} splats. Target: ${target}.`);
 
+  onProgress({
+    type: "start",
+    iteration: 0,
+    originalCount: N0,
+    currentCount: N0,
+    targetCount: target,
+    progress: 0,
+  });
+
   let cur = pruneByOpacity(state, rp.opacityThreshold, onStatus);
+
+  emitSnapshot(onProgress, keepHistory, {
+    type: "snapshot",
+    stage: "prune",
+    label: "Prune",
+    iteration: 0,
+    originalCount: N0,
+    currentCount: cur.count,
+    targetCount: target,
+    progress: reductionProgress(N0, cur.count, target),
+    state: cur,
+  });
+
   const Z = makeGaussianSamples(cp.nMc, cp.seed);
 
   let iteration = 0;
@@ -42,6 +65,17 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
     iteration += 1;
     const N = cur.count;
     onStatus(`Pass ${iteration}: ${N} splats`);
+
+    onProgress({
+      type: "pass-start",
+      stage: "pass-start",
+      label: `Pass ${iteration}`,
+      iteration,
+      originalCount: N0,
+      currentCount: N,
+      targetCount: target,
+      progress: reductionProgress(N0, N, target),
+    });
 
     const kEff = Math.min(Math.max(1, rp.k), Math.max(1, N - 1));
     const cache = buildPerSplatCache(cur, cp.epsCov);
@@ -75,10 +109,35 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
     }
 
     cur = mergePairs(cur, pairs);
+
+    emitSnapshot(onProgress, keepHistory, {
+      type: "snapshot",
+      stage: "pass",
+      label: `Pass ${iteration}`,
+      iteration,
+      originalCount: N0,
+      currentCount: cur.count,
+      targetCount: target,
+      progress: reductionProgress(N0, cur.count, target),
+      state: cur,
+    });
+
     await microYield();
   }
 
   onStatus(`Final splats: ${cur.count}`);
+
+  emitSnapshot(onProgress, keepHistory, {
+    type: "done",
+    stage: "done",
+    label: "Final",
+    iteration,
+    originalCount: N0,
+    currentCount: cur.count,
+    targetCount: target,
+    progress: 1,
+    state: cur,
+  });
 
   const packed = buildPackedSplatsFromState(cur);
   attachSparkSHExtras(packed, cur);
@@ -87,7 +146,7 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
     packed,
     originalCount: N0,
     finalCount: cur.count,
-    state: cur, // useful for debugging / export
+    state: cur,
   };
 }
 
@@ -1172,4 +1231,39 @@ function clamp(x, lo, hi) {
 
 function microYield() {
   return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function cloneState(src) {
+  const out = makeState(src.count, src.shDim);
+  out.mu.set(src.mu);
+  out.sc.set(src.sc);
+  out.q.set(src.q);
+  out.op.set(src.op);
+  out.sh.set(src.sh);
+  out.sh1Min = src.sh1Min;
+  out.sh1Max = src.sh1Max;
+  out.sh2Min = src.sh2Min;
+  out.sh2Max = src.sh2Max;
+  out.sh3Min = src.sh3Min;
+  out.sh3Max = src.sh3Max;
+  return out;
+}
+
+function reductionProgress(originalCount, currentCount, targetCount) {
+  const totalRemovedNeeded = Math.max(originalCount - targetCount, 1);
+  const removedSoFar = Math.max(0, originalCount - currentCount);
+  return clamp(removedSoFar / totalRemovedNeeded, 0, 1);
+}
+
+function emitSnapshot(onProgress, keepHistory, payload) {
+  onProgress({
+    ...payload,
+    snapshot: keepHistory ? cloneState(payload.state) : null,
+  });
+}
+
+export function packedFromState(state) {
+  const packed = buildPackedSplatsFromState(state);
+  attachSparkSHExtras(packed, state);
+  return packed;
 }

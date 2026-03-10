@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SplatMesh } from "@sparkjsdev/spark";
-import { simplifyMesh } from "./simplify.js";
+import { simplifyMesh, packedFromState } from "./simplify.js";
 
 const app = document.getElementById("app");
 const layerLeft = document.getElementById("layer-left");
@@ -23,7 +23,15 @@ const ratioNumberEl = document.getElementById("ratio-number");
 const kEl = document.getElementById("k");
 const opacityThresholdEl = document.getElementById("opacity-threshold");
 const lamGeoEl = document.getElementById("lam-geo");
-const lamColorEl = document.getElementById("lam-color");
+const lamShEl = document.getElementById("lam-sh");
+
+const progressPercentEl = document.getElementById("progress-percent");
+const progressBarFillEl = document.getElementById("progress-bar-fill");
+const statOriginalEl = document.getElementById("stat-original");
+const statTargetEl = document.getElementById("stat-target");
+const statCurrentEl = document.getElementById("stat-current");
+const statShownEl = document.getElementById("stat-shown");
+const trackListEl = document.getElementById("track-list");
 
 const rendererLeft = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 const rendererRight = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -53,7 +61,10 @@ let originalName = "example.ply";
 let simplifiedName = "example_0.1.ply";
 
 let originalBytes = null;
-let simplifiedBlob = null;
+let latestSimplifyResult = null;
+
+let historyEntries = [];
+let activeHistoryIndex = -1;
 
 ratioEl.addEventListener("input", () => {
   ratioNumberEl.value = ratioEl.value;
@@ -101,6 +112,11 @@ async function loadOriginalBytes(bytes, name) {
   originalBytes = bytes;
   originalName = name;
   updateLabels();
+
+  latestSimplifyResult = null;
+  btnDownload.disabled = true;
+  clearHistory();
+
   setStatus(`Loaded original: ${name}`);
 }
 
@@ -112,7 +128,6 @@ async function loadSimplifiedBytes(bytes, name) {
   sceneRight.add(rightMesh);
   simplifiedName = name;
   updateLabels();
-  btnDownload.disabled = false;
   setStatus(`Loaded simplified: ${name}`);
 }
 
@@ -124,7 +139,6 @@ async function loadSimplifiedPacked(packed, name) {
   sceneRight.add(rightMesh);
   simplifiedName = name;
   updateLabels();
-  btnDownload.disabled = false;
   setStatus(`Simplified view ready: ${name}`);
 }
 
@@ -188,6 +202,115 @@ function stopDrag(e) {
 handle.addEventListener("pointerup", stopDrag);
 handle.addEventListener("pointercancel", stopDrag);
 
+function clearHistory() {
+  historyEntries = [];
+  activeHistoryIndex = -1;
+  trackListEl.innerHTML = "";
+  progressPercentEl.textContent = "0%";
+  progressBarFillEl.style.width = "0%";
+  statOriginalEl.textContent = "-";
+  statTargetEl.textContent = "-";
+  statCurrentEl.textContent = "-";
+  statShownEl.textContent = "-";
+}
+
+function formatInt(n) {
+  return Number.isFinite(n) ? n.toLocaleString() : "-";
+}
+
+function updateProgressHeader(entry) {
+  if (!entry) return;
+  const pct = Math.round((entry.progress ?? 0) * 100);
+  progressPercentEl.textContent = `${pct}%`;
+  progressBarFillEl.style.width = `${pct}%`;
+  statOriginalEl.textContent = formatInt(entry.originalCount);
+  statTargetEl.textContent = formatInt(entry.targetCount);
+  statCurrentEl.textContent = formatInt(entry.currentCount);
+}
+
+function renderHistory() {
+  trackListEl.innerHTML = "";
+
+  historyEntries.forEach((entry, index) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "track-item" + (index === activeHistoryIndex ? " active" : "");
+
+    const pct = Math.round((entry.progress ?? 0) * 100);
+    btn.innerHTML = `
+      <div class="track-row-top">
+        <div class="track-title">${entry.label}</div>
+        <div class="track-count">${formatInt(entry.currentCount)} splats</div>
+      </div>
+      <div class="track-row-bottom">
+        ${entry.stage}${entry.iteration ? ` · iter ${entry.iteration}` : ""} · ${pct}%
+      </div>
+    `;
+
+    btn.addEventListener("click", async () => {
+      await previewHistoryEntry(index);
+    });
+
+    trackListEl.appendChild(btn);
+  });
+}
+
+async function previewHistoryEntry(index) {
+  const entry = historyEntries[index];
+  if (!entry) return;
+
+  activeHistoryIndex = index;
+  renderHistory();
+  updateProgressHeader(entry);
+  statShownEl.textContent = formatInt(entry.currentCount);
+
+  try {
+    setStatus(`Previewing ${entry.label}...`);
+    const packed = packedFromState(entry.snapshot);
+    const stageName = `${originalName.replace(/\.ply$/i, "")}_${entry.label.toLowerCase().replace(/\s+/g, "_")}.ply`;
+    await loadSimplifiedPacked(packed, stageName);
+    setStatus(`Showing ${entry.label}: ${entry.currentCount} splats`);
+  } catch (err) {
+    console.error(err);
+    setStatus(`Failed to preview ${entry.label}: ${err.message}`);
+  }
+}
+
+function handleSimplifyProgress(evt) {
+  if (!evt) return;
+
+  if (evt.type === "start") {
+    statOriginalEl.textContent = formatInt(evt.originalCount);
+    statTargetEl.textContent = formatInt(evt.targetCount);
+    statCurrentEl.textContent = formatInt(evt.currentCount);
+    progressPercentEl.textContent = "0%";
+    progressBarFillEl.style.width = "0%";
+    return;
+  }
+
+  if (evt.type === "snapshot" || evt.type === "done") {
+    historyEntries.push({
+      label: evt.label,
+      stage: evt.stage,
+      iteration: evt.iteration,
+      originalCount: evt.originalCount,
+      currentCount: evt.currentCount,
+      targetCount: evt.targetCount,
+      progress: evt.progress,
+      snapshot: evt.snapshot,
+    });
+
+    statCurrentEl.textContent = formatInt(evt.currentCount);
+    updateProgressHeader(evt);
+
+    if (activeHistoryIndex === -1) {
+      activeHistoryIndex = historyEntries.length - 1;
+    }
+
+    renderHistory();
+  }
+}
+
 async function simplifyCurrent() {
   if (!leftMesh) {
     setStatus("No original splat loaded.");
@@ -199,33 +322,42 @@ async function simplifyCurrent() {
     k: Math.max(2, Math.floor(Number(kEl.value))),
     opacityThreshold: Math.min(1, Math.max(0, Number(opacityThresholdEl.value))),
     lamGeo: Math.max(0, Number(lamGeoEl.value)),
-    lamColor: Math.max(0, Number(lamColorEl.value)),
+    lamSh: Math.max(0, Number(lamShEl.value)),
+    keepHistory: true,
   };
 
   btnSimplify.disabled = true;
   btnDownload.disabled = true;
+  clearHistory();
 
   try {
     const t0 = performance.now();
 
-    const result = await simplifyMesh(leftMesh, params, setStatus);
+    const result = await simplifyMesh(leftMesh, params, setStatus, handleSimplifyProgress);
+    latestSimplifyResult = result;
 
     const ratioTag = params.ratio.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     simplifiedName = originalName.replace(/\.ply$/i, `_${ratioTag}.ply`);
-    simplifiedBlob = result.blob;
 
     await loadSimplifiedPacked(result.packed, simplifiedName);
+
+    if (historyEntries.length > 0) {
+      activeHistoryIndex = historyEntries.length - 1;
+      renderHistory();
+      statShownEl.textContent = formatInt(historyEntries[historyEntries.length - 1].currentCount);
+    }
 
     const t1 = performance.now();
     setStatus(
       `Done. ${result.originalCount} → ${result.finalCount} splats in ${((t1 - t0) / 1000).toFixed(2)} s.`
     );
+
+    btnDownload.disabled = false;
   } catch (err) {
     console.error(err);
     setStatus(`Simplify failed: ${err.message}`);
   } finally {
     btnSimplify.disabled = false;
-    btnDownload.disabled = !simplifiedBlob;
   }
 }
 
@@ -245,16 +377,11 @@ inputOriginal.addEventListener("change", async (e) => {
 btnSimplify.addEventListener("click", simplifyCurrent);
 
 btnDownload.addEventListener("click", () => {
-  if (!simplifiedBlob) return;
-  const url = URL.createObjectURL(simplifiedBlob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = simplifiedName || "simplified.ply";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  setStatus(`Downloaded: ${simplifiedName}`);
+  if (!latestSimplifyResult?.packed) {
+    setStatus("Download export is not implemented yet for in-browser packed results.");
+    return;
+  }
+  setStatus("Download export is not implemented yet for in-browser packed results.");
 });
 
 window.addEventListener("resize", resize);

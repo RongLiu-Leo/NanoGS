@@ -15,9 +15,8 @@
     }
   }
   </script>
-  <script type="module" src="./app.js"></script>
-  <script type="module" src="./simplify.js"></script>
 
+  <script type="module" src="./app.js"></script>
 </head>
 <body>
   <div id="app">
@@ -37,7 +36,7 @@
           <input id="input-original" class="hidden-input" type="file" accept=".ply" />
         </label>
 
-        <div class="control-group">
+        <div class="control-group control-group-wide">
           <label for="ratio">ratio</label>
           <input id="ratio" type="range" min="0.02" max="0.95" step="0.01" value="0.10" />
           <input id="ratio-number" type="number" min="0.02" max="0.95" step="0.01" value="0.10" />
@@ -59,14 +58,51 @@
         </div>
 
         <div class="control-group">
-          <label for="lam-color">color</label>
-          <input id="lam-color" type="number" min="0" max="10" step="0.1" value="1.0" />
+          <label for="lam-sh">sh</label>
+          <input id="lam-sh" type="number" min="0" max="10" step="0.1" value="1.0" />
         </div>
 
-        <button id="btn-simplify" class="btn" type="button">Simplify</button>
+        <button id="btn-simplify" class="btn btn-primary" type="button">Simplify</button>
         <button id="btn-download" class="btn" type="button" disabled>Download simplified</button>
       </div>
     </div>
+
+    <aside id="progress-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div>
+            <div class="panel-title">Progress track</div>
+            <div class="panel-subtitle">Click a stage to preview it on the right</div>
+          </div>
+          <div id="progress-percent" class="badge">0%</div>
+        </div>
+
+        <div id="progress-bar">
+          <div id="progress-bar-fill"></div>
+        </div>
+
+        <div id="stats-grid">
+          <div class="stat">
+            <div class="stat-label">Original</div>
+            <div id="stat-original" class="stat-value">-</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Target</div>
+            <div id="stat-target" class="stat-value">-</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Current</div>
+            <div id="stat-current" class="stat-value">-</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Shown</div>
+            <div id="stat-shown" class="stat-value">-</div>
+          </div>
+        </div>
+
+        <div id="track-list"></div>
+      </div>
+    </aside>
 
     <div id="ui">
       <div id="label-left" class="label">Original: example.ply</div>
@@ -77,6 +113,5 @@
 
     <div id="status">Ready. Loaded demo files.</div>
   </div>
-
 </body>
 </html>
