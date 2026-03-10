@@ -65,9 +65,6 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
 
     const mergesNeeded = N - target;
     let P = mergesNeeded > 0 ? mergesNeeded : null;
-    if (P !== null) {
-      P = Math.min(P, Math.max(1, Math.floor((N0 - target) / 8)));
-    }
 
     const pairs = greedyPairsFromEdges(edges, w, N, P);
 
