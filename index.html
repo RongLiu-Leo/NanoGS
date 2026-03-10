@@ -42,20 +42,37 @@
           </div>
 
           <div id="controls">
-            <label class="file-btn">
-              Load
-              <input id="input-original" class="hidden-input" type="file" accept=".ply" />
-            </label>
+            <div class="controls-row">
+              <label class="file-btn">
+                Load
+                <input id="input-original" class="hidden-input" type="file" accept=".ply" />
+              </label>
+
+              <button id="btn-simplify" class="btn btn-primary" type="button">Simplify</button>
+            </div>
 
             <div class="hyper-params">
               <div class="control-group control-group-wide">
-                <label for="ratio">Ratio</label>
-                <input id="ratio" type="range" min="0.02" max="0.95" step="0.01" value="0.10" />
-                <input id="ratio-number" type="number" min="0.02" max="0.95" step="0.01" value="0.10" />
+                <div class="control-group-header">
+                  <label for="ratio">Ratio</label>
+                </div>
+                <div class="ratio-input-row">
+                  <input id="ratio" type="range" min="0.01" max="0.99" step="0.01" value="0.10" />
+                  <input id="ratio-number" type="number" min="0.01" max="0.99" step="0.01" value="0.10" />
+                </div>
               </div>
             </div>
 
-            <button id="btn-simplify" class="btn btn-primary" type="button">Simplify</button>
+            <div id="stats-grid">
+              <div class="stat">
+                <div class="stat-label">Original</div>
+                <div id="stat-original" class="stat-value">-</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">Target</div>
+                <div id="stat-target" class="stat-value">-</div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -69,19 +86,8 @@
         </div>
 
         <div id="progress-bar" title="Drag to preview progress stages">
-            <div id="progress-bar-fill"></div>
-            <div id="progress-bar-handle"></div>
-        </div>
-
-        <div id="stats-grid">
-          <div class="stat">
-            <div class="stat-label">Original</div>
-            <div id="stat-original" class="stat-value">-</div>
-          </div>
-          <div class="stat">
-            <div class="stat-label">Target</div>
-            <div id="stat-target" class="stat-value">-</div>
-          </div>
+          <div id="progress-bar-fill"></div>
+          <div id="progress-bar-handle"></div>
         </div>
 
         <div id="track-list"></div>
