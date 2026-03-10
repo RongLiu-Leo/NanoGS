@@ -27,6 +27,8 @@ const lamShEl = document.getElementById("lam-sh");
 
 const progressPercentEl = document.getElementById("progress-percent");
 const progressBarFillEl = document.getElementById("progress-bar-fill");
+const progressBarEl = document.getElementById("progress-bar");
+const progressBarHandleEl = document.getElementById("progress-bar-handle");
 const statOriginalEl = document.getElementById("stat-original");
 const statTargetEl = document.getElementById("stat-target");
 const statCurrentEl = document.getElementById("stat-current");
@@ -65,6 +67,9 @@ let latestSimplifyResult = null;
 
 let historyEntries = [];
 let activeHistoryIndex = -1;
+
+let isSimplifying = false;
+let autoFollowProgress = true;
 
 ratioEl.addEventListener("input", () => {
   ratioNumberEl.value = ratioEl.value;
@@ -206,8 +211,7 @@ function clearHistory() {
   historyEntries = [];
   activeHistoryIndex = -1;
   trackListEl.innerHTML = "";
-  progressPercentEl.textContent = "0%";
-  progressBarFillEl.style.width = "0%";
+  updateProgressVisual(0);
   statOriginalEl.textContent = "-";
   statTargetEl.textContent = "-";
   statCurrentEl.textContent = "-";
@@ -218,11 +222,32 @@ function formatInt(n) {
   return Number.isFinite(n) ? n.toLocaleString() : "-";
 }
 
-function updateProgressHeader(entry) {
+function updateProgressHeader(entry, options = {}) {
   if (!entry) return;
-  const pct = Math.round((entry.progress ?? 0) * 100);
-  progressPercentEl.textContent = `${pct}%`;
-  progressBarFillEl.style.width = `${pct}%`;
+
+  const {
+    mode = "auto",          // "auto" | "live" | "preview"
+    previewIndex = -1,
+  } = options;
+
+  let progress01 = entry.progress ?? 0;
+
+  if (mode === "live") {
+    progress01 = entry.progress ?? 0;
+  } else if (mode === "preview") {
+    progress01 = displayedProgressFromIndex(previewIndex);
+  } else {
+    if (isSimplifying && autoFollowProgress) {
+      progress01 = entry.progress ?? 0;
+    } else if (previewIndex >= 0) {
+      progress01 = displayedProgressFromIndex(previewIndex);
+    } else if (activeHistoryIndex >= 0) {
+      progress01 = displayedProgressFromIndex(activeHistoryIndex);
+    }
+  }
+
+  updateProgressVisual(progress01);
+
   statOriginalEl.textContent = formatInt(entry.originalCount);
   statTargetEl.textContent = formatInt(entry.targetCount);
   statCurrentEl.textContent = formatInt(entry.currentCount);
@@ -256,25 +281,89 @@ function renderHistory() {
 }
 
 async function previewHistoryEntry(index) {
+  await scrubToProgressIndex(index);
+}
+
+function progressClientXToIndex(clientX) {
+  const rect = progressBarEl.getBoundingClientRect();
+  const t = Math.max(0, Math.min(1, (clientX - rect.left) / Math.max(rect.width, 1)));
+  if (historyEntries.length <= 1) return 0;
+  return Math.round(t * (historyEntries.length - 1));
+}
+
+let progressDragging = false;
+let progressPreviewToken = 0;
+
+async function scrubToProgressIndex(index) {
+  index = Math.max(0, Math.min(index, historyEntries.length - 1));
+  if (index === activeHistoryIndex) return;
+
+  autoFollowProgress = false;
+  const token = ++progressPreviewToken;
   const entry = historyEntries[index];
   if (!entry) return;
 
   activeHistoryIndex = index;
   renderHistory();
-  updateProgressHeader(entry);
+  updateProgressHeader(entry, {
+    mode: "preview",
+    previewIndex: index,
+  });
   statShownEl.textContent = formatInt(entry.currentCount);
 
   try {
-    setStatus(`Previewing ${entry.label}...`);
     const packed = packedFromState(entry.snapshot);
     const stageName = `${originalName.replace(/\.ply$/i, "")}_${entry.label.toLowerCase().replace(/\s+/g, "_")}.ply`;
-    await loadSimplifiedPacked(packed, stageName);
+    const mesh = await buildMeshFromPacked(packed);
+
+    if (token !== progressPreviewToken) {
+      if (typeof mesh.dispose === "function") mesh.dispose();
+      return;
+    }
+
+    clearMesh(sceneRight, rightMesh);
+    rightMesh = mesh;
+    sceneRight.add(rightMesh);
+
+    simplifiedName = stageName;
+    updateLabels();
     setStatus(`Showing ${entry.label}: ${entry.currentCount} splats`);
   } catch (err) {
     console.error(err);
     setStatus(`Failed to preview ${entry.label}: ${err.message}`);
   }
 }
+
+progressBarEl.addEventListener("pointerdown", async (e) => {
+  if (!historyEntries.length) return;
+  progressDragging = true;
+  progressBarEl.setPointerCapture(e.pointerId);
+  const index = progressClientXToIndex(e.clientX);
+  await scrubToProgressIndex(index);
+  e.preventDefault();
+  e.stopPropagation();
+});
+
+progressBarEl.addEventListener("pointermove", async (e) => {
+  if (!progressDragging || !historyEntries.length) return;
+  const index = progressClientXToIndex(e.clientX);
+  await scrubToProgressIndex(index);
+  e.preventDefault();
+  e.stopPropagation();
+});
+
+function stopProgressDrag(e) {
+  if (!progressDragging) return;
+  progressDragging = false;
+  try {
+    progressBarEl.releasePointerCapture(e.pointerId);
+  } catch (_) {}
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+progressBarEl.addEventListener("pointerup", stopProgressDrag);
+progressBarEl.addEventListener("pointercancel", stopProgressDrag);
 
 function handleSimplifyProgress(evt) {
   if (!evt) return;
@@ -283,8 +372,8 @@ function handleSimplifyProgress(evt) {
     statOriginalEl.textContent = formatInt(evt.originalCount);
     statTargetEl.textContent = formatInt(evt.targetCount);
     statCurrentEl.textContent = formatInt(evt.currentCount);
-    progressPercentEl.textContent = "0%";
-    progressBarFillEl.style.width = "0%";
+    statShownEl.textContent = "-";
+    updateProgressVisual(0);
     return;
   }
 
@@ -301,10 +390,16 @@ function handleSimplifyProgress(evt) {
     });
 
     statCurrentEl.textContent = formatInt(evt.currentCount);
-    updateProgressHeader(evt);
 
-    if (activeHistoryIndex === -1) {
+    if (autoFollowProgress) {
       activeHistoryIndex = historyEntries.length - 1;
+      statShownEl.textContent = formatInt(evt.currentCount);
+      updateProgressHeader(evt, { mode: "live" });
+    } else {
+      updateProgressHeader(evt, {
+        mode: "preview",
+        previewIndex: activeHistoryIndex,
+      });
     }
 
     renderHistory();
@@ -330,7 +425,11 @@ async function simplifyCurrent() {
   btnDownload.disabled = true;
   clearHistory();
 
-  try {
+  isSimplifying = true;
+  autoFollowProgress = true;
+  activeHistoryIndex = -1;
+
+    try {
     const t0 = performance.now();
 
     const result = await simplifyMesh(leftMesh, params, setStatus, handleSimplifyProgress);
@@ -345,7 +444,14 @@ async function simplifyCurrent() {
       activeHistoryIndex = historyEntries.length - 1;
       renderHistory();
       statShownEl.textContent = formatInt(historyEntries[historyEntries.length - 1].currentCount);
+      updateProgressHeader(historyEntries[historyEntries.length - 1], {
+        mode: "preview",
+        previewIndex: activeHistoryIndex,
+      });
     }
+
+    isSimplifying = false;
+    autoFollowProgress = true;
 
     const t1 = performance.now();
     setStatus(
@@ -354,9 +460,11 @@ async function simplifyCurrent() {
 
     btnDownload.disabled = false;
   } catch (err) {
+    isSimplifying = false;
     console.error(err);
     setStatus(`Simplify failed: ${err.message}`);
   } finally {
+    isSimplifying = false;
     btnSimplify.disabled = false;
   }
 }
@@ -418,6 +526,21 @@ async function boot() {
     resize();
     setSplit(0.5);
     animate();
+  }
+}
+
+function displayedProgressFromIndex(index) {
+  if (!historyEntries.length || index < 0) return 0;
+  if (historyEntries.length === 1) return 1;
+  return index / (historyEntries.length - 1);
+}
+
+function updateProgressVisual(progress01) {
+  const pct = Math.round(progress01 * 100);
+  progressPercentEl.textContent = `${pct}%`;
+  progressBarFillEl.style.width = `${pct}%`;
+  if (progressBarHandleEl) {
+    progressBarHandleEl.style.left = `${pct}%`;
   }
 }
 
