@@ -26,7 +26,17 @@ html, body {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: row;
   background: var(--bg);
+}
+
+#viewer {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .layer {
@@ -68,7 +78,7 @@ html, body {
 
 .label {
   position: absolute;
-  top: 110px;
+  top: 14px;
   padding: 7px 11px;
   background: rgba(0, 0, 0, 0.36);
   color: white;
@@ -168,27 +178,21 @@ html, body {
 }
 
 #topbar {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 340px;
-  z-index: 70;
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: var(--panel);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
+  justify-content: flex-start;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   pointer-events: auto;
 }
 
 #brand {
-  min-width: 190px;
+  min-width: 0;
 }
 
 #brand-title {
@@ -207,9 +211,16 @@ html, body {
 #controls {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 10px 12px;
   align-items: center;
+}
+
+.sidepanel-divider {
+  height: 1px;
+  width: 100%;
+  background: rgba(255,255,255,0.10);
+  opacity: 0.9;
 }
 
 .control-group {
@@ -295,13 +306,13 @@ html, body {
 }
 
 #progress-panel {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 56px;
+  position: relative;
   width: 316px;
+  height: 100%;
   z-index: 70;
-  pointer-events: none;
+  pointer-events: auto;
+  flex: 0 0 316px;
+  padding: 12px;
 }
 
 .panel-card {
@@ -443,40 +454,23 @@ html, body {
 }
 
 @media (max-width: 1380px) {
-  #topbar {
-    right: 12px;
+  #app {
+    flex-direction: column;
   }
 
   #progress-panel {
-    top: auto;
-    left: 12px;
-    right: 12px;
-    bottom: 56px;
     width: auto;
-    height: 240px;
+    flex: 0 0 auto;
+    height: 320px;
+    padding: 12px;
   }
 
   .panel-card {
-    max-height: 240px;
-  }
-
-  .label {
-    top: 164px;
+    max-height: 320px;
   }
 }
 
 @media (max-width: 1200px) {
-  #topbar {
-    flex-direction: column;
-  }
-
-  #controls {
-    justify-content: flex-start;
-  }
-
-  .label {
-    top: 206px;
-  }
 }
 #progress-bar {
   position: relative;

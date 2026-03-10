@@ -20,55 +20,66 @@
 </head>
 <body>
   <div id="app">
-    <div id="layer-right" class="layer"></div>
-    <div id="layer-left" class="layer"></div>
-    <div id="interaction-layer"></div>
+    <div id="viewer">
+      <div id="layer-right" class="layer"></div>
+      <div id="layer-left" class="layer"></div>
+      <div id="interaction-layer"></div>
 
-    <div id="topbar">
-      <div id="brand">
-        <div id="brand-title">NanoGS</div>
-        <div id="brand-subtitle">Browser demo for Gaussian Splat simplification</div>
-      </div>
-
-      <div id="controls">
-        <label class="file-btn">
-          Load original
-          <input id="input-original" class="hidden-input" type="file" accept=".ply" />
-        </label>
-
-        <div class="control-group control-group-wide">
-          <label for="ratio">ratio</label>
-          <input id="ratio" type="range" min="0.02" max="0.95" step="0.01" value="0.10" />
-          <input id="ratio-number" type="number" min="0.02" max="0.95" step="0.01" value="0.10" />
-        </div>
-
-        <div class="control-group">
-          <label for="k">k</label>
-          <input id="k" type="number" min="2" max="64" step="1" value="12" />
-        </div>
-
-        <div class="control-group">
-          <label for="opacity-threshold">opacity</label>
-          <input id="opacity-threshold" type="number" min="0" max="1" step="0.01" value="0.10" />
-        </div>
-
-        <div class="control-group">
-          <label for="lam-geo">geo</label>
-          <input id="lam-geo" type="number" min="0" max="10" step="0.1" value="1.0" />
-        </div>
-
-        <div class="control-group">
-          <label for="lam-sh">sh</label>
-          <input id="lam-sh" type="number" min="0" max="10" step="0.1" value="1.0" />
-        </div>
-
-        <button id="btn-simplify" class="btn btn-primary" type="button">Simplify</button>
-        <button id="btn-download" class="btn" type="button" disabled>Download simplified</button>
+      <div id="ui">
+        <div id="label-left" class="label">Original: example.ply</div>
+        <div id="label-right" class="label">NanoGS: example_0.1.ply</div>
+        <div id="divider"></div>
+        <div id="handle"></div>
       </div>
     </div>
 
     <aside id="progress-panel">
       <div class="panel-card">
+        <div id="topbar">
+          <div id="brand">
+            <div id="brand-title">NanoGS</div>
+            <div id="brand-subtitle">Browser demo for Gaussian Splat simplification</div>
+          </div>
+
+          <div id="controls">
+            <label class="file-btn">
+              Load original
+              <input id="input-original" class="hidden-input" type="file" accept=".ply" />
+            </label>
+
+            <div class="control-group control-group-wide">
+              <label for="ratio">ratio</label>
+              <input id="ratio" type="range" min="0.02" max="0.95" step="0.01" value="0.10" />
+              <input id="ratio-number" type="number" min="0.02" max="0.95" step="0.01" value="0.10" />
+            </div>
+
+            <div class="control-group">
+              <label for="k">k</label>
+              <input id="k" type="number" min="2" max="64" step="1" value="12" />
+            </div>
+
+            <div class="control-group">
+              <label for="opacity-threshold">opacity</label>
+              <input id="opacity-threshold" type="number" min="0" max="1" step="0.01" value="0.10" />
+            </div>
+
+            <div class="control-group">
+              <label for="lam-geo">geo</label>
+              <input id="lam-geo" type="number" min="0" max="10" step="0.1" value="1.0" />
+            </div>
+
+            <div class="control-group">
+              <label for="lam-sh">sh</label>
+              <input id="lam-sh" type="number" min="0" max="10" step="0.1" value="1.0" />
+            </div>
+
+            <button id="btn-simplify" class="btn btn-primary" type="button">Simplify</button>
+            <button id="btn-download" class="btn" type="button" disabled>Download simplified</button>
+          </div>
+        </div>
+
+        <div class="sidepanel-divider" role="presentation"></div>
+
         <div class="panel-header">
           <div>
             <div class="panel-title">Progress track</div>
@@ -104,13 +115,6 @@
         <div id="track-list"></div>
       </div>
     </aside>
-
-    <div id="ui">
-      <div id="label-left" class="label">Original: example.ply</div>
-      <div id="label-right" class="label">NanoGS: example_0.1.ply</div>
-      <div id="divider"></div>
-      <div id="handle"></div>
-    </div>
   </div>
 </body>
 </html>

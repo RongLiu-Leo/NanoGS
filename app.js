@@ -4,6 +4,7 @@ import { SplatMesh } from "@sparkjsdev/spark";
 import { simplifyMesh, packedFromState } from "./simplify.js";
 
 const app = document.getElementById("app");
+const viewer = document.getElementById("viewer");
 const layerLeft = document.getElementById("layer-left");
 const layerRight = document.getElementById("layer-right");
 const interactionLayer = document.getElementById("interaction-layer");
@@ -45,7 +46,7 @@ rendererRight.setClearColor(0x111111, 1);
 layerLeft.appendChild(rendererLeft.domElement);
 layerRight.appendChild(rendererRight.domElement);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
 camera.position.set(0, 0, 3);
 
 const controls = new OrbitControls(camera, interactionLayer);
@@ -136,8 +137,9 @@ async function loadSimplifiedPacked(packed, name) {
 }
 
 function resize() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
+  const rect = viewer?.getBoundingClientRect?.();
+  const w = Math.max(1, Math.floor(rect?.width ?? window.innerWidth));
+  const h = Math.max(1, Math.floor(rect?.height ?? window.innerHeight));
   rendererLeft.setSize(w, h, false);
   rendererRight.setSize(w, h, false);
   camera.aspect = w / h;
@@ -159,7 +161,7 @@ function setSplit(t) {
 }
 
 function clientXToSplit(clientX) {
-  const rect = app.getBoundingClientRect();
+  const rect = viewer?.getBoundingClientRect?.() ?? app.getBoundingClientRect();
   return (clientX - rect.left) / rect.width;
 }
 
