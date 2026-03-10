@@ -21,6 +21,10 @@ html, body {
   color: var(--text);
 }
 
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 #app {
   position: relative;
   width: 100vw;
@@ -210,10 +214,42 @@ html, body {
 
 #controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  flex-wrap: nowrap;
   justify-content: flex-start;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.hyper-params {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px 12px;
-  align-items: center;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+}
+
+.hyper-params .control-group {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.hyper-params .control-group-wide {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.file-btn,
+#btn-simplify {
+  width: 100%;
+  justify-content: center;
+}
+
+.file-btn {
+  text-align: center;
 }
 
 .sidepanel-divider {
@@ -275,6 +311,7 @@ html, body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
 }
 
 .btn:hover,

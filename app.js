@@ -16,14 +16,10 @@ const labelRight = document.getElementById("label-right");
 
 const inputOriginal = document.getElementById("input-original");
 const btnSimplify = document.getElementById("btn-simplify");
-const btnDownload = document.getElementById("btn-download");
+const btnDownload = null;
 
 const ratioEl = document.getElementById("ratio");
 const ratioNumberEl = document.getElementById("ratio-number");
-const kEl = document.getElementById("k");
-const opacityThresholdEl = document.getElementById("opacity-threshold");
-const lamGeoEl = document.getElementById("lam-geo");
-const lamShEl = document.getElementById("lam-sh");
 
 const progressPercentEl = document.getElementById("progress-percent");
 const progressBarFillEl = document.getElementById("progress-bar-fill");
@@ -31,8 +27,6 @@ const progressBarEl = document.getElementById("progress-bar");
 const progressBarHandleEl = document.getElementById("progress-bar-handle");
 const statOriginalEl = document.getElementById("stat-original");
 const statTargetEl = document.getElementById("stat-target");
-const statCurrentEl = document.getElementById("stat-current");
-const statShownEl = document.getElementById("stat-shown");
 const trackListEl = document.getElementById("track-list");
 
 const rendererLeft = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -114,7 +108,6 @@ async function loadOriginalBytes(bytes, name) {
   updateLabels();
 
   latestSimplifyResult = null;
-  btnDownload.disabled = true;
   clearHistory();
 }
 
@@ -204,8 +197,6 @@ function clearHistory() {
   updateProgressVisual(0);
   statOriginalEl.textContent = "-";
   statTargetEl.textContent = "-";
-  statCurrentEl.textContent = "-";
-  statShownEl.textContent = "-";
 }
 
 function formatInt(n) {
@@ -240,7 +231,6 @@ function updateProgressHeader(entry, options = {}) {
 
   statOriginalEl.textContent = formatInt(entry.originalCount);
   statTargetEl.textContent = formatInt(entry.targetCount);
-  statCurrentEl.textContent = formatInt(entry.currentCount);
 }
 
 function renderHistory() {
@@ -299,7 +289,6 @@ async function scrubToProgressIndex(index) {
     mode: "preview",
     previewIndex: index,
   });
-  statShownEl.textContent = formatInt(entry.currentCount);
 
   try {
     const packed = packedFromState(entry.snapshot);
@@ -359,8 +348,6 @@ function handleSimplifyProgress(evt) {
   if (evt.type === "start") {
     statOriginalEl.textContent = formatInt(evt.originalCount);
     statTargetEl.textContent = formatInt(evt.targetCount);
-    statCurrentEl.textContent = formatInt(evt.currentCount);
-    statShownEl.textContent = "-";
     updateProgressVisual(0);
     return;
   }
@@ -377,11 +364,8 @@ function handleSimplifyProgress(evt) {
       snapshot: evt.snapshot,
     });
 
-    statCurrentEl.textContent = formatInt(evt.currentCount);
-
     if (autoFollowProgress) {
       activeHistoryIndex = historyEntries.length - 1;
-      statShownEl.textContent = formatInt(evt.currentCount);
       updateProgressHeader(evt, { mode: "live" });
     } else {
       updateProgressHeader(evt, {
@@ -401,15 +385,10 @@ async function simplifyCurrent() {
 
   const params = {
     ratio: Math.min(0.95, Math.max(0.02, Number(ratioEl.value))),
-    k: Math.max(2, Math.floor(Number(kEl.value))),
-    opacityThreshold: Math.min(1, Math.max(0, Number(opacityThresholdEl.value))),
-    lamGeo: Math.max(0, Number(lamGeoEl.value)),
-    lamSh: Math.max(0, Number(lamShEl.value)),
     keepHistory: true,
   };
 
   btnSimplify.disabled = true;
-  btnDownload.disabled = true;
   clearHistory();
 
   isSimplifying = true;
@@ -430,7 +409,6 @@ async function simplifyCurrent() {
     if (historyEntries.length > 0) {
       activeHistoryIndex = historyEntries.length - 1;
       renderHistory();
-      statShownEl.textContent = formatInt(historyEntries[historyEntries.length - 1].currentCount);
       updateProgressHeader(historyEntries[historyEntries.length - 1], {
         mode: "preview",
         previewIndex: activeHistoryIndex,
@@ -442,7 +420,6 @@ async function simplifyCurrent() {
 
     const t1 = performance.now();
 
-    btnDownload.disabled = false;
   } catch (err) {
     isSimplifying = false;
     console.error(err);
@@ -465,12 +442,6 @@ inputOriginal.addEventListener("change", async (e) => {
 });
 
 btnSimplify.addEventListener("click", simplifyCurrent);
-
-btnDownload.addEventListener("click", () => {
-  if (!latestSimplifyResult?.packed) {
-    return;
-  }
-});
 
 window.addEventListener("resize", resize);
 

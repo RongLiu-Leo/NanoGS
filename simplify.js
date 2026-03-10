@@ -11,13 +11,13 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}, onPro
 
   const rp = {
     ratio: clamp(Number(params.ratio ?? 0.5), 1e-6, 0.999999),
-    k: Math.max(1, Math.floor(Number(params.k ?? 16))),
-    opacityThreshold: clamp(Number(params.opacityThreshold ?? 0.1), 0.0, 1.0),
+    k: 16,
+    opacityThreshold: 0.1,
   };
 
   const cp = {
-    lamGeo: Math.max(0, Number(params.lamGeo ?? 1.0)),
-    lamSh: Math.max(0, Number(params.lamSh ?? 1.0)),
+    lamGeo: 1.0,
+    lamSh: 1.0,
     nMc: Math.max(1, Math.floor(Number(params.nMc ?? 1))),
     seed: Math.floor(Number(params.seed ?? 0)),
     epsCov: Number(params.epsCov ?? 1e-8),
