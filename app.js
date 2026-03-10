@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SplatMesh } from "@sparkjsdev/spark";
-import { simplifyMesh, packedFromState } from "./simplify.js";
+import { simplifyMesh, packedFromState, getSplatCount } from "./simplify.js";
 
 const app = document.getElementById("app");
 const viewer = document.getElementById("viewer");
@@ -54,9 +54,10 @@ let leftMesh = null;
 let rightMesh = null;
 
 let originalName = "example.ply";
-let simplifiedName = "example_0.1.ply";
+let simplifiedName = "-";
 
 let originalBytes = null;
+let originalSplatCount = null;
 let latestSimplifyResult = null;
 
 let historyEntries = [];
@@ -67,10 +68,12 @@ let autoFollowProgress = true;
 
 ratioEl.addEventListener("input", () => {
   ratioNumberEl.value = ratioEl.value;
+  updateStatsFromOriginalAndRatio();
 });
 
 ratioNumberEl.addEventListener("input", () => {
   ratioEl.value = ratioNumberEl.value;
+  updateStatsFromOriginalAndRatio();
 });
 
 function updateLabels() {
@@ -105,10 +108,21 @@ async function loadOriginalBytes(bytes, name) {
   sceneLeft.add(leftMesh);
   originalBytes = bytes;
   originalName = name;
-  updateLabels();
+
+  // Reset simplified view/state when a new model is loaded.
+  clearMesh(sceneRight, rightMesh);
+  rightMesh = null;
+  simplifiedName = "-";
 
   latestSimplifyResult = null;
   clearHistory();
+  originalSplatCount = await getSplatCount(mesh);
+  updateStatsFromOriginalAndRatio();
+
+  // With no simplified model, show the full original.
+  // Smoothly move the divider/handle to the far right.
+  animateSplitTo(1.0);
+  updateLabels();
 }
 
 async function loadSimplifiedBytes(bytes, name) {
@@ -140,6 +154,7 @@ function resize() {
 }
 
 let split = 0.5;
+let splitAnimationId = 0;
 
 function setSplit(t) {
   split = Math.max(0, Math.min(1, t));
@@ -153,6 +168,27 @@ function setSplit(t) {
   layerLeft.style.webkitClipPath = clip;
 }
 
+function animateSplitTo(target, durationMs = 900) {
+  const start = split;
+  const end = Math.max(0, Math.min(1, target));
+  const startTime = performance.now();
+  const myId = ++splitAnimationId;
+
+  function frame(now) {
+    if (myId !== splitAnimationId) return; // cancelled by a new animation or user drag
+    const t = Math.min(1, (now - startTime) / durationMs);
+    // Ease-out for a smoother finish.
+    const eased = 1 - Math.pow(1 - t, 3);
+    const value = start + (end - start) * eased;
+    setSplit(value);
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
 function clientXToSplit(clientX) {
   const rect = viewer?.getBoundingClientRect?.() ?? app.getBoundingClientRect();
   return (clientX - rect.left) / rect.width;
@@ -161,6 +197,8 @@ function clientXToSplit(clientX) {
 let dragging = false;
 
 handle.addEventListener("pointerdown", (e) => {
+  // Cancel any ongoing automatic animation when the user grabs the handle.
+  splitAnimationId++;
   dragging = true;
   handle.setPointerCapture(e.pointerId);
   controls.enabled = false;
@@ -195,12 +233,21 @@ function clearHistory() {
   activeHistoryIndex = -1;
   trackListEl.innerHTML = "";
   updateProgressVisual(0);
-  statOriginalEl.textContent = "-";
-  statTargetEl.textContent = "-";
 }
 
 function formatInt(n) {
   return Number.isFinite(n) ? n.toLocaleString() : "-";
+}
+
+function updateStatsFromOriginalAndRatio() {
+  statOriginalEl.textContent = formatInt(originalSplatCount);
+  if (originalSplatCount == null) {
+    statTargetEl.textContent = "-";
+    return;
+  }
+  const ratio = Math.min(0.95, Math.max(0.02, Number(ratioEl.value)));
+  const target = Math.max(1, Math.ceil(originalSplatCount * ratio));
+  statTargetEl.textContent = formatInt(target);
 }
 
 function updateProgressHeader(entry, options = {}) {
@@ -228,9 +275,6 @@ function updateProgressHeader(entry, options = {}) {
   }
 
   updateProgressVisual(progress01);
-
-  statOriginalEl.textContent = formatInt(entry.originalCount);
-  statTargetEl.textContent = formatInt(entry.targetCount);
 }
 
 function renderHistory() {
@@ -242,13 +286,18 @@ function renderHistory() {
     btn.className = "track-item" + (index === activeHistoryIndex ? " active" : "");
 
     const pct = Math.round((entry.progress ?? 0) * 100);
+    const iteration = typeof entry.iteration === "number" ? entry.iteration : 0;
+    const isPrune = entry.stage === "prune";
+    const title = `Iteration ${iteration}`;
+    const stageText = isPrune ? "prune" : "merge";
+
     btn.innerHTML = `
       <div class="track-row-top">
-        <div class="track-title">${entry.label}</div>
+        <div class="track-title">${title}</div>
         <div class="track-count">${formatInt(entry.currentCount)} splats</div>
       </div>
       <div class="track-row-bottom">
-        ${entry.stage}${entry.iteration ? ` · iter ${entry.iteration}` : ""} · ${pct}%
+        ${stageText} · ${pct}%
       </div>
     `;
 
@@ -292,7 +341,10 @@ async function scrubToProgressIndex(index) {
 
   try {
     const packed = packedFromState(entry.snapshot);
-    const stageName = `${originalName.replace(/\.ply$/i, "")}_${entry.label.toLowerCase().replace(/\s+/g, "_")}.ply`;
+    const baseName = originalName.replace(/\.ply$/i, "");
+    const iteration =
+      typeof entry.iteration === "number" ? entry.iteration : index;
+    const stageName = `${baseName}_iteration_${iteration}.ply`;
     const mesh = await buildMeshFromPacked(packed);
 
     if (token !== progressPreviewToken) {
@@ -346,13 +398,11 @@ function handleSimplifyProgress(evt) {
   if (!evt) return;
 
   if (evt.type === "start") {
-    statOriginalEl.textContent = formatInt(evt.originalCount);
-    statTargetEl.textContent = formatInt(evt.targetCount);
     updateProgressVisual(0);
     return;
   }
 
-  if (evt.type === "snapshot" || evt.type === "done") {
+  if (evt.type === "snapshot") {
     historyEntries.push({
       label: evt.label,
       stage: evt.stage,
@@ -375,6 +425,51 @@ function handleSimplifyProgress(evt) {
     }
 
     renderHistory();
+
+    // While simplifying and auto-following, also live-update the right view
+    // so that layer-right and label-right reflect the current progress stage.
+    if (isSimplifying && autoFollowProgress && evt.snapshot) {
+      const snapshot = evt.snapshot;
+      (async () => {
+        try {
+          const packed = packedFromState(snapshot);
+          const baseName = originalName.replace(/\.ply$/i, "");
+          const iteration =
+            typeof evt.iteration === "number"
+              ? evt.iteration
+              : historyEntries.length - 1;
+          const stageName = `${baseName}_iteration_${iteration}.ply`;
+          const mesh = await buildMeshFromPacked(packed);
+
+          // If simplification has stopped or the user took manual control,
+          // avoid overwriting their chosen view.
+          if (!isSimplifying || !autoFollowProgress) {
+            if (typeof mesh.dispose === "function") mesh.dispose();
+            return;
+          }
+
+          clearMesh(sceneRight, rightMesh);
+          rightMesh = mesh;
+          simplifiedName = stageName;
+          updateLabels();
+        } catch (err) {
+          console.error(err);
+        }
+      })();
+    }
+
+    return;
+  }
+
+  if (evt.type === "done") {
+    // Keep the existing stages, but treat "Final" as a completion
+    // event that updates progress to 100% without adding a new row.
+    if (historyEntries.length > 0) {
+      const last = historyEntries[historyEntries.length - 1];
+      last.progress = evt.progress ?? 1;
+      renderHistory();
+    }
+    updateProgressHeader(evt, { mode: "live" });
   }
 }
 
@@ -391,6 +486,13 @@ async function simplifyCurrent() {
   btnSimplify.disabled = true;
   clearHistory();
 
+  // When starting a new simplification, clear the previous progress stage
+  // from the right view so the upcoming run can fully own the UI state.
+  clearMesh(sceneRight, rightMesh);
+  rightMesh = null;
+  simplifiedName = originalName.replace(/\.ply$/i, "_simplifying.ply");
+  updateLabels();
+
   isSimplifying = true;
   autoFollowProgress = true;
   activeHistoryIndex = -1;
@@ -401,10 +503,27 @@ async function simplifyCurrent() {
     const result = await simplifyMesh(leftMesh, params, undefined, handleSimplifyProgress);
     latestSimplifyResult = result;
 
-    const ratioTag = params.ratio.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-    simplifiedName = originalName.replace(/\.ply$/i, `_${ratioTag}.ply`);
+    let finalName;
+    if (historyEntries.length > 0) {
+      const lastEntry = historyEntries[historyEntries.length - 1];
+      const iteration =
+        typeof lastEntry.iteration === "number"
+          ? lastEntry.iteration
+          : historyEntries.length - 1;
+      const baseName = originalName.replace(/\.ply$/i, "");
+      finalName = `${baseName}_iteration_${iteration}.ply`;
+    } else {
+      const ratioTag = params.ratio.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+      finalName = originalName.replace(/\.ply$/i, `_${ratioTag}.ply`);
+    }
+
+    simplifiedName = finalName;
 
     await loadSimplifiedPacked(result.packed, simplifiedName);
+
+    // Once the simplified model is ready, smoothly reveal the comparison
+    // by animating the divider/handle from the right edge to the center.
+    animateSplitTo(0.5);
 
     if (historyEntries.length > 0) {
       activeHistoryIndex = historyEntries.length - 1;
@@ -460,16 +579,10 @@ async function fetchBytes(url) {
 
 async function boot() {
   try {
-    const [demoOriginal, demoSimplified] = await Promise.all([
-      fetchBytes("./example.ply"),
-      fetchBytes("./example_0.1.ply"),
-    ]);
+    const demoOriginal = await fetchBytes("./example.ply");
 
     await loadOriginalBytes(demoOriginal, "example.ply");
-    await loadSimplifiedBytes(demoSimplified, "example_0.1.ply");
-    updateLabels();
     resize();
-    setSplit(0.5);
     animate();
   } catch (err) {
     console.error(err);
