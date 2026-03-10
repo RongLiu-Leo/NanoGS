@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { TrackballControls } from "three/addons/controls/TrackballControls.js";
 import { SplatMesh } from "@sparkjsdev/spark";
 import { simplifyMesh, packedFromState, getSplatCount, stateToPlyBytes } from "./simplify.js";
 
@@ -43,9 +43,9 @@ layerRight.appendChild(rendererRight.domElement);
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
 camera.position.set(0, 0, 3);
 
-const controls = new OrbitControls(camera, interactionLayer);
-controls.enableDamping = true;
+const controls = new TrackballControls(camera, interactionLayer);
 controls.target.set(0, 0, 0);
+controls.dynamicDampingFactor = 0.1;
 
 const sceneLeft = new THREE.Scene();
 const sceneRight = new THREE.Scene();
@@ -151,6 +151,7 @@ function resize() {
   rendererRight.setSize(w, h, false);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  controls.handleResize();
 }
 
 let split = 0.5;
