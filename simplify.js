@@ -2,7 +2,6 @@ import * as THREE from "three";
 import createKDTree from "https://esm.sh/static-kdtree";
 import { PackedSplats } from "@sparkjsdev/spark";
 
-const SH_C0 = 0.28209479177387814;
 const TWO_PI_POW_1P5 = Math.pow(2.0 * Math.PI, 1.5);
 const LOG2PI = Math.log(2.0 * Math.PI);
 
@@ -18,7 +17,7 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
 
   const cp = {
     lamGeo: Math.max(0, Number(params.lamGeo ?? 1.0)),
-    lamColor: Math.max(0, Number(params.lamColor ?? 1.0)),
+    lamSh: Math.max(0, Number(params.lamSh ?? 1.0)),
     nMc: Math.max(1, Math.floor(Number(params.nMc ?? 1))),
     seed: Math.floor(Number(params.seed ?? 0)),
     epsCov: Number(params.epsCov ?? 1e-8),
@@ -28,15 +27,14 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
     throw new Error("ratio must be in (0, 1).");
   }
 
-  onStatus("Reading splats...");
-  const state = extractSplatsFromMesh(mesh);
+  onStatus("Reading splats with full SH...");
+  const state = await extractSplatsWithSH(mesh, onStatus);
 
   const N0 = state.count;
   const target = Math.max(Math.ceil(N0 * rp.ratio), 1);
   onStatus(`Loaded ${N0} splats. Target: ${target}.`);
 
   let cur = pruneByOpacity(state, rp.opacityThreshold, onStatus);
-
   const Z = makeGaussianSamples(cp.nMc, cp.seed);
 
   let iteration = 0;
@@ -65,7 +63,6 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
 
     const mergesNeeded = N - target;
     let P = mergesNeeded > 0 ? mergesNeeded : null;
-
     const pairs = greedyPairsFromEdges(edges, w, N, P);
 
     onStatus(
@@ -83,14 +80,14 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
 
   onStatus(`Final splats: ${cur.count}`);
 
-  const packed = buildPackedSplats(cur);
-  const blob = buildGsplatPlyBlob(cur);
+  const packed = buildPackedSplatsFromState(cur);
+  attachSparkSHExtras(packed, cur);
 
   return {
     packed,
-    blob,
     originalCount: N0,
     finalCount: cur.count,
+    state: cur, // useful for debugging / export
   };
 }
 
@@ -98,18 +95,25 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}) {
 /* State layout                                                               */
 /* -------------------------------------------------------------------------- */
 
-function makeState(count) {
+function makeState(count, shDim) {
   return {
     count,
+    shDim,
     mu: new Float32Array(count * 3),
     sc: new Float32Array(count * 3),
-    q: new Float32Array(count * 4), // wxyz
+    q: new Float32Array(count * 4),
     op: new Float32Array(count),
-    color: new Float32Array(count * 3),
+    sh: new Float32Array(count * shDim),
+
+    sh1Min: -1, sh1Max: 1,
+    sh2Min: -1, sh2Max: 1,
+    sh3Min: -1, sh3Max: 1,
   };
 }
 
-function extractSplatsFromMesh(mesh) {
+
+async function extractSplatsWithSH(mesh, onStatus = () => {}) {
+
   const tmp = [];
   mesh.forEachSplat((index, center, scales, quaternion, opacity, color) => {
     tmp.push({
@@ -124,34 +128,71 @@ function extractSplatsFromMesh(mesh) {
       qy: Math.fround(quaternion.y),
       qz: Math.fround(quaternion.z),
       op: clamp(Math.fround(opacity), 0, 1),
-      r: clamp(Math.fround(color.r), 0, 1),
-      g: clamp(Math.fround(color.g), 0, 1),
-      b: clamp(Math.fround(color.b), 0, 1),
+      // SH0-only fallback
+      sh0r: Math.fround(color.r),
+      sh0g: Math.fround(color.g),
+      sh0b: Math.fround(color.b),
     });
   });
 
-  const out = makeState(tmp.length);
+  let decoded = null;
+  try {
+    decoded = tryDecodeSparkSHExtrasFromMesh(mesh, tmp.length);
+  } catch (err) {
+    console.warn("SH decode unavailable, falling back to SH0-only:", err);
+  }
+
+  const extraDim = decoded?.shDim ?? 0;
+  const shDim = 3 + extraDim;
+  const out = makeState(tmp.length, shDim);
+
   for (let i = 0; i < tmp.length; i++) {
     const s = tmp[i];
-    const qi = 4 * i;
-    const mi = 3 * i;
+    const i3 = 3 * i;
+    const i4 = 4 * i;
+    const is = shDim * i;
 
     let qw = s.qw, qx = s.qx, qy = s.qy, qz = s.qz;
     const qn = Math.hypot(qw, qx, qy, qz);
     const invq = 1.0 / Math.max(qn, 1e-12);
     qw *= invq; qx *= invq; qy *= invq; qz *= invq;
 
-    out.mu[mi] = s.cx; out.mu[mi + 1] = s.cy; out.mu[mi + 2] = s.cz;
-    out.sc[mi] = s.sx; out.sc[mi + 1] = s.sy; out.sc[mi + 2] = s.sz;
-    out.q[qi] = qw; out.q[qi + 1] = qx; out.q[qi + 2] = qy; out.q[qi + 3] = qz;
+    out.mu[i3] = s.cx; out.mu[i3 + 1] = s.cy; out.mu[i3 + 2] = s.cz;
+    out.sc[i3] = s.sx; out.sc[i3 + 1] = s.sy; out.sc[i3 + 2] = s.sz;
+    out.q[i4] = qw; out.q[i4 + 1] = qx; out.q[i4 + 2] = qy; out.q[i4 + 3] = qz;
     out.op[i] = s.op;
-    out.color[mi] = s.r; out.color[mi + 1] = s.g; out.color[mi + 2] = s.b;
+
+    out.sh[is] = s.sh0r;
+    out.sh[is + 1] = s.sh0g;
+    out.sh[is + 2] = s.sh0b;
+
+    if (decoded) {
+        for (let k = 0; k < extraDim; k++) {
+            out.sh[is + 3 + k] = decoded.sh[i * extraDim + k];
+        }
+    }
+    out.sh1Min = decoded.sh1Min;
+    out.sh1Max = decoded.sh1Max;
+    out.sh2Min = decoded.sh2Min;
+    out.sh2Max = decoded.sh2Max;
+    out.sh3Min = decoded.sh3Min;
+    out.sh3Max = decoded.sh3Max;
   }
+
+  onStatus(
+    decoded
+      ? `Decoded full SH: ${shDim} coeffs/splat`
+      : `Using SH0-only fallback: ${shDim} coeffs/splat`
+  );
+
   return out;
 }
 
 function subsetState(src, keepIdx) {
-  const out = makeState(keepIdx.length);
+  const out = makeState(keepIdx.length, src.shDim);
+  out.sh1Min = src.sh1Min; out.sh1Max = src.sh1Max;
+  out.sh2Min = src.sh2Min; out.sh2Max = src.sh2Max;
+  out.sh3Min = src.sh3Min; out.sh3Max = src.sh3Max;
   for (let t = 0; t < keepIdx.length; t++) {
     const i = keepIdx[t];
     copySplat(src, i, out, t);
@@ -162,6 +203,7 @@ function subsetState(src, keepIdx) {
 function copySplat(src, i, dst, j) {
   const si3 = 3 * i, sj3 = 3 * j;
   const si4 = 4 * i, sj4 = 4 * j;
+  const sis = src.shDim * i, sjs = dst.shDim * j;
 
   dst.mu[sj3] = src.mu[si3];
   dst.mu[sj3 + 1] = src.mu[si3 + 1];
@@ -178,9 +220,9 @@ function copySplat(src, i, dst, j) {
 
   dst.op[j] = src.op[i];
 
-  dst.color[sj3] = src.color[si3];
-  dst.color[sj3 + 1] = src.color[si3 + 1];
-  dst.color[sj3 + 2] = src.color[si3 + 2];
+  for (let k = 0; k < src.shDim; k++) {
+    dst.sh[sjs + k] = src.sh[sis + k];
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -242,7 +284,7 @@ function knnUndirectedEdgesKD(tree, state, k) {
       if (j === i || j < 0) continue;
       const u = i < j ? i : j;
       const v = i < j ? j : i;
-      const key = u * N + v;
+      const key = `${u},${v}`;
       if (!set.has(key)) {
         set.add(key);
         edges.push([u, v]);
@@ -285,7 +327,10 @@ function buildPerSplatCache(state, epsCov) {
     invdiag[i3] = 1.0 / Math.max(vx, 1e-30);
     invdiag[i3 + 1] = 1.0 / Math.max(vy, 1e-30);
     invdiag[i3 + 2] = 1.0 / Math.max(vz, 1e-30);
-    logdet[i] = Math.log(Math.max(vx, 1e-30)) + Math.log(Math.max(vy, 1e-30)) + Math.log(Math.max(vz, 1e-30));
+    logdet[i] =
+      Math.log(Math.max(vx, 1e-30)) +
+      Math.log(Math.max(vy, 1e-30)) +
+      Math.log(Math.max(vz, 1e-30));
 
     quatToRotmatInto(
       state.q[i4], state.q[i4 + 1], state.q[i4 + 2], state.q[i4 + 3],
@@ -323,6 +368,7 @@ function edgeCosts(edges, state, cache, cp, Z, onStatus = () => {}, blockEdges =
 function fullCostPairCached(i, j, state, cache, cp, Z) {
   const i3 = 3 * i, j3 = 3 * j;
   const i9 = 9 * i, j9 = 9 * j;
+  const is = state.shDim * i, js = state.shDim * j;
 
   const mux = state.mu[i3], muy = state.mu[i3 + 1], muz = state.mu[i3 + 2];
   const mvx = state.mu[j3], mvy = state.mu[j3 + 1], mvz = state.mu[j3 + 2];
@@ -348,9 +394,7 @@ function fullCostPairCached(i, j, state, cache, cp, Z) {
   const Sigm = new Float64Array(9);
 
   for (let a = 0; a < 9; a++) {
-    Sigm[a] =
-      pi * cache.sigma[i9 + a] +
-      pj * cache.sigma[j9 + a];
+    Sigm[a] = pi * cache.sigma[i9 + a] + pj * cache.sigma[j9 + a];
   }
 
   Sigm[0] += pi * dix * dix + pj * djx * djx;
@@ -363,7 +407,6 @@ function fullCostPairCached(i, j, state, cache, cp, Z) {
   Sigm[7] += pi * diz * diy + pj * djz * djy;
   Sigm[8] += pi * diz * diz + pj * djz * djz;
 
-  // sym + epsI
   const s01 = 0.5 * (Sigm[1] + Sigm[3]);
   const s02 = 0.5 * (Sigm[2] + Sigm[6]);
   const s12 = 0.5 * (Sigm[5] + Sigm[7]);
@@ -439,12 +482,13 @@ function fullCostPairCached(i, j, state, cache, cp, Z) {
   const EpLogp = pi * Ei + pj * Ej;
   const geo = EpLogp + EpNegLogQ;
 
-  const dr = state.color[i3] - state.color[j3];
-  const dg = state.color[i3 + 1] - state.color[j3 + 1];
-  const db = state.color[i3 + 2] - state.color[j3 + 2];
-  const cColor = dr * dr + dg * dg + db * db;
+  let cSh = 0.0;
+  for (let k = 0; k < state.shDim; k++) {
+    const d = state.sh[is + k] - state.sh[js + k];
+    cSh += d * d;
+  }
 
-  return Math.fround(cp.lamGeo * geo + cp.lamColor * cColor);
+  return Math.fround(cp.lamGeo * geo + cp.lamSh * cSh);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -503,7 +547,10 @@ function mergePairs(state, pairs) {
     if (!used[i]) keep.push(i);
   }
 
-  const out = makeState(keep.length + pairs.length);
+  const out = makeState(keep.length + pairs.length, state.shDim);
+  out.sh1Min = state.sh1Min; out.sh1Max = state.sh1Max;
+  out.sh2Min = state.sh2Min; out.sh2Max = state.sh2Max;
+  out.sh3Min = state.sh3Min; out.sh3Max = state.sh3Max;
 
   let dst = 0;
   for (let t = 0; t < keep.length; t++, dst++) {
@@ -523,6 +570,7 @@ function momentMatchInto(state, i, j, out, dst) {
   const i3 = 3 * i, j3 = 3 * j;
   const i4 = 4 * i, j4 = 4 * j;
   const d3 = 3 * dst, d4 = 4 * dst;
+  const is = state.shDim * i, js = state.shDim * j, ds = state.shDim * dst;
 
   const sxi = state.sc[i3], syi = state.sc[i3 + 1], szi = state.sc[i3 + 2];
   const sxj = state.sc[j3], syj = state.sc[j3 + 1], szj = state.sc[j3 + 2];
@@ -576,7 +624,7 @@ function momentMatchInto(state, i, j, out, dst) {
 
   const ev = eigenSymmetric3x3Flat(Sig);
   let vals = ev.values;
-  let vecs = ev.vectors; // columns
+  let vecs = ev.vectors;
 
   const order = [0, 1, 2].sort((a, b) => vals[b] - vals[a]);
   vals = order.map((k) => Math.max(vals[k], 1e-18));
@@ -594,6 +642,7 @@ function momentMatchInto(state, i, j, out, dst) {
   }
 
   const q = rotmatToQuatFlat(R, 0);
+
   out.mu[d3] = Math.fround(mux);
   out.mu[d3 + 1] = Math.fround(muy);
   out.mu[d3 + 2] = Math.fround(muz);
@@ -607,18 +656,21 @@ function momentMatchInto(state, i, j, out, dst) {
   out.q[d4 + 2] = Math.fround(q[2]);
   out.q[d4 + 3] = Math.fround(q[3]);
 
-  out.op[dst] = Math.fround(clamp(state.op[i] + state.op[j] - state.op[i] * state.op[j], 0, 1));
+  out.op[dst] = Math.fround(clamp(
+    state.op[i] + state.op[j] - state.op[i] * state.op[j],
+    0, 1
+  ));
 
-  out.color[d3] = Math.fround((wi * state.color[i3] + wj * state.color[j3]) / W);
-  out.color[d3 + 1] = Math.fround((wi * state.color[i3 + 1] + wj * state.color[j3 + 1]) / W);
-  out.color[d3 + 2] = Math.fround((wi * state.color[i3 + 2] + wj * state.color[j3 + 2]) / W);
+  for (let k = 0; k < state.shDim; k++) {
+    out.sh[ds + k] = Math.fround((wi * state.sh[is + k] + wj * state.sh[js + k]) / W);
+  }
 }
 
 /* -------------------------------------------------------------------------- */
 /* Output                                                                     */
 /* -------------------------------------------------------------------------- */
 
-function buildPackedSplats(state) {
+function buildPackedSplatsFromState(state) {
   const packed = new PackedSplats({ maxSplats: state.count });
   const center = new THREE.Vector3();
   const scales = new THREE.Vector3();
@@ -628,11 +680,16 @@ function buildPackedSplats(state) {
   for (let i = 0; i < state.count; i++) {
     const i3 = 3 * i;
     const i4 = 4 * i;
+    const is = state.shDim * i;
+
+    const r = clamp(state.sh[is] ?? 0, 0, 1);
+    const g = clamp(state.sh[is + 1] ?? 0, 0, 1);
+    const b = clamp(state.sh[is + 2] ?? 0, 0, 1);
 
     center.set(state.mu[i3], state.mu[i3 + 1], state.mu[i3 + 2]);
     scales.set(state.sc[i3], state.sc[i3 + 1], state.sc[i3 + 2]);
     quat.set(state.q[i4 + 1], state.q[i4 + 2], state.q[i4 + 3], state.q[i4]); // xyzw
-    color.setRGB(state.color[i3], state.color[i3 + 1], state.color[i3 + 2]);
+    color.setRGB(r, g, b);
 
     packed.pushSplat(center, scales, quat, state.op[i], color);
   }
@@ -641,75 +698,237 @@ function buildPackedSplats(state) {
   return packed;
 }
 
-function buildGsplatPlyBlob(state) {
-  const headerLines = [
-    "ply",
-    "format binary_little_endian 1.0",
-    `element vertex ${state.count}`,
-    "property float x",
-    "property float y",
-    "property float z",
-    "property float nx",
-    "property float ny",
-    "property float nz",
-    "property float f_dc_0",
-    "property float f_dc_1",
-    "property float f_dc_2",
-    ...Array.from({ length: 45 }, (_, i) => `property float f_rest_${i}`),
-    "property float opacity",
-    "property float scale_0",
-    "property float scale_1",
-    "property float scale_2",
-    "property float rot_0",
-    "property float rot_1",
-    "property float rot_2",
-    "property float rot_3",
-    "end_header\n",
-  ];
-  const header = new TextEncoder().encode(headerLines.join("\n"));
+function attachSparkSHExtras(packed, state) {
+  const count = state.count;
+  const shDim = state.shDim;
+  const remaining = shDim - 3;
+  const hasSh1 = remaining >= 9;
+  const hasSh2 = remaining >= 9 + 15;
+  const hasSh3 = remaining >= 9 + 15 + 21;
+  if (!hasSh1 && !hasSh2 && !hasSh3) {
+    if (!packed.extra) packed.extra = {};
+    delete packed.extra.sh1;
+    delete packed.extra.sh2;
+    delete packed.extra.sh3;
+    delete packed.extra.encoding;
+    return;
+  }
+  const sh1Min = typeof state.sh1Min === 'number' ? state.sh1Min : -1;
+  const sh1Max = typeof state.sh1Max === 'number' ? state.sh1Max : 1;
+  const sh2Min = typeof state.sh2Min === 'number' ? state.sh2Min : -1;
+  const sh2Max = typeof state.sh2Max === 'number' ? state.sh2Max : 1;
+  const sh3Min = typeof state.sh3Min === 'number' ? state.sh3Min : -1;
+  const sh3Max = typeof state.sh3Max === 'number' ? state.sh3Max : 1;
 
-  const floatsPerVertex = 62;
-  const body = new ArrayBuffer(state.count * floatsPerVertex * 4);
-  const dv = new DataView(body);
+  const sh1Scale = (sh1Max - sh1Min) !== 0 ? 126 / (sh1Max - sh1Min) : 0;
+  const sh2Scale = (sh2Max - sh2Min) !== 0 ? 254 / (sh2Max - sh2Min) : 0;
+  const sh3Scale = (sh3Max - sh3Min) !== 0 ?  62 / (sh3Max - sh3Min) : 0;
+  const sh1Mid   = (sh1Min + sh1Max) * 0.5;
+  const sh2Mid   = (sh2Min + sh2Max) * 0.5;
+  const sh3Mid   = (sh3Min + sh3Max) * 0.5;
 
-  let off = 0;
-  for (let i = 0; i < state.count; i++) {
-    const i3 = 3 * i;
-    const i4 = 4 * i;
+  if (!packed.extra) packed.extra = {};
 
-    const fdc0 = (state.color[i3] - 0.5) / SH_C0;
-    const fdc1 = (state.color[i3 + 1] - 0.5) / SH_C0;
-    const fdc2 = (state.color[i3 + 2] - 0.5) / SH_C0;
-
-    writeF32(dv, off, state.mu[i3]); off += 4;
-    writeF32(dv, off, state.mu[i3 + 1]); off += 4;
-    writeF32(dv, off, state.mu[i3 + 2]); off += 4;
-
-    writeF32(dv, off, 0); off += 4;
-    writeF32(dv, off, 0); off += 4;
-    writeF32(dv, off, 0); off += 4;
-
-    writeF32(dv, off, fdc0); off += 4;
-    writeF32(dv, off, fdc1); off += 4;
-    writeF32(dv, off, fdc2); off += 4;
-
-    for (let k = 0; k < 45; k++) {
-      writeF32(dv, off, 0);
-      off += 4;
+  if (hasSh1) {
+    const sh1Arr = new Uint32Array(count * 2);
+    const offset = 3;
+    for (let i = 0; i < count; i++) {
+      const base = i * shDim + offset;
+      const wordBase = i * 2;
+      for (let j = 0; j < 9; j++) {
+        let s;
+        const val = state.sh[base + j];
+        if (Number.isNaN(val)) s = 0;
+        else if (sh1Scale !== 0) s = Math.round((val - sh1Mid) * sh1Scale);
+        else s = 0;
+        if (s > 63) s = 63;
+        if (s < -63) s = -63;
+        const encoded  = s & 0x7f;
+        const bitStart = j * 7;
+        const wIndex   = Math.floor(bitStart / 32);
+        const bitOff   = bitStart - wIndex * 32;
+        if (bitOff <= 25) {
+          sh1Arr[wordBase + wIndex] |= encoded << bitOff;
+        } else {
+          const bitsInWord = 32 - bitOff;
+          sh1Arr[wordBase + wIndex]     |= (encoded << bitOff) >>> 0;
+          sh1Arr[wordBase + wIndex + 1] |=  encoded >>> bitsInWord;
+        }
+      }
     }
+    packed.extra.sh1 = sh1Arr;
+  } else delete packed.extra.sh1;
 
-    writeF32(dv, off, logit(clamp(state.op[i], 1e-6, 1 - 1e-6))); off += 4;
-    writeF32(dv, off, Math.log(Math.max(state.sc[i3], 1e-12))); off += 4;
-    writeF32(dv, off, Math.log(Math.max(state.sc[i3 + 1], 1e-12))); off += 4;
-    writeF32(dv, off, Math.log(Math.max(state.sc[i3 + 2], 1e-12))); off += 4;
+  if (hasSh2) {
+    const sh2Arr = new Uint32Array(count * 4);
+    const offset = 3 + (hasSh1 ? 9 : 0);
+    for (let i = 0; i < count; i++) {
+      const base = i * shDim + offset;
+      const wordBase = i * 4;
+      let coeffIdx = 0;
+      for (let w = 0; w < 4; w++) {
+        let word = 0;
+        for (let b = 0; b < 4; b++) {
+          let s;
+          if (coeffIdx < 15) {
+            const val = state.sh[base + coeffIdx];
+            if (Number.isNaN(val)) s = 0;
+            else if (sh2Scale !== 0) s = Math.round((val - sh2Mid) * sh2Scale);
+            else s = 0;
+            if (s > 127) s = 127;
+            if (s < -127) s = -127;
+          } else s = 0;
+          const byteVal = s & 0xff;
+          word |= byteVal << (8 * b);
+          coeffIdx++;
+        }
+        sh2Arr[wordBase + w] = word >>> 0;
+      }
+    }
+    packed.extra.sh2 = sh2Arr;
+  } else delete packed.extra.sh2;
 
-    writeF32(dv, off, state.q[i4]); off += 4;
-    writeF32(dv, off, state.q[i4 + 1]); off += 4;
-    writeF32(dv, off, state.q[i4 + 2]); off += 4;
-    writeF32(dv, off, state.q[i4 + 3]); off += 4;
+  if (hasSh3) {
+    const sh3Arr = new Uint32Array(count * 4);
+    const offset = 3 + (hasSh1 ? 9 : 0) + (hasSh2 ? 15 : 0);
+    for (let i = 0; i < count; i++) {
+      const base = i * shDim + offset;
+      const wordBase = i * 4;
+      for (let j = 0; j < 21; j++) {
+        let s;
+        const val = state.sh[base + j];
+        if (Number.isNaN(val)) s = 0;
+        else if (sh3Scale !== 0) s = Math.round((val - sh3Mid) * sh3Scale);
+        else s = 0;
+        if (s > 31) s = 31;
+        if (s < -31) s = -31;
+        const encoded  = s & 0x3f;
+        const bitStart = j * 6;
+        const wIndex   = Math.floor(bitStart / 32);
+        const bitOff   = bitStart - wIndex * 32;
+        if (bitOff <= 26) {
+          sh3Arr[wordBase + wIndex] |= encoded << bitOff;
+        } else {
+          const bitsInWord = 32 - bitOff;
+          sh3Arr[wordBase + wIndex]     |= (encoded << bitOff) >>> 0;
+          sh3Arr[wordBase + wIndex + 1] |=  encoded >>> bitsInWord;
+        }
+      }
+    }
+    packed.extra.sh3 = sh3Arr;
+  } else delete packed.extra.sh3;
+
+  const encoding = {};
+  if (hasSh1) { encoding.sh1Min = sh1Min; encoding.sh1Max = sh1Max; }
+  if (hasSh2) { encoding.sh2Min = sh2Min; encoding.sh2Max = sh2Max; }
+  if (hasSh3) { encoding.sh3Min = sh3Min; encoding.sh3Max = sh3Max; }
+  packed.extra.encoding = encoding;
+}
+
+function tryDecodeSparkSHExtrasFromMesh(mesh, count) {
+  const packed = mesh?.packedSplats ?? mesh?.splats ?? mesh;
+  if (!packed || !packed.extra) return null;
+  const extra = packed.extra;
+  const hasSh1 = extra.sh1 instanceof Uint32Array;
+  const hasSh2 = extra.sh2 instanceof Uint32Array;
+  const hasSh3 = extra.sh3 instanceof Uint32Array;
+  if (!hasSh1 && !hasSh2 && !hasSh3) return null;
+
+  const enc = extra.encoding ?? {};
+  const sh1Min = typeof enc.sh1Min === 'number' ? enc.sh1Min : -1;
+  const sh1Max = typeof enc.sh1Max === 'number' ? enc.sh1Max : 1;
+  const sh2Min = typeof enc.sh2Min === 'number' ? enc.sh2Min : -1;
+  const sh2Max = typeof enc.sh2Max === 'number' ? enc.sh2Max : 1;
+  const sh3Min = typeof enc.sh3Min === 'number' ? enc.sh3Min : -1;
+  const sh3Max = typeof enc.sh3Max === 'number' ? enc.sh3Max : 1;
+  const sh1ScaleInv = (sh1Max - sh1Min) / 126;
+  const sh2ScaleInv = (sh2Max - sh2Min) / 254;
+  const sh3ScaleInv = (sh3Max - sh3Min) / 62;
+  const sh1Mid = (sh1Min + sh1Max) * 0.5;
+  const sh2Mid = (sh2Min + sh2Max) * 0.5;
+  const sh3Mid = (sh3Min + sh3Max) * 0.5;
+
+  const dims = [];
+  if (hasSh1) dims.push(9);
+  if (hasSh2) dims.push(15);
+  if (hasSh3) dims.push(21);
+  const shDim = dims.reduce((a, b) => a + b, 0);
+  const out = new Float32Array(count * shDim);
+
+  function decode7bits(val) { return (val & 0x40) ? (val | ~0x7f) : val; }
+  function decode6bits(val) { return (val & 0x20) ? (val | ~0x3f) : val; }
+
+  if (hasSh1) {
+    const sh1 = extra.sh1;
+    for (let i = 0; i < count; i++) {
+      const baseOut = i * shDim;
+      const baseWord = i * 2;
+      for (let j = 0; j < 9; j++) {
+        const bitStart = j * 7;
+        const wordIndex = Math.floor(bitStart / 32);
+        const bitOffset = bitStart - wordIndex * 32;
+        let bits;
+        if (bitOffset <= 32 - 7) {
+          bits = (sh1[baseWord + wordIndex] >>> bitOffset) & 0x7f;
+        } else {
+          const bitsInWord = 32 - bitOffset;
+          const lowPart  = (sh1[baseWord + wordIndex] >>> bitOffset) & ((1 << bitsInWord) - 1);
+          const highPart = sh1[baseWord + wordIndex + 1] & ((1 << (7 - bitsInWord)) - 1);
+          bits = (highPart << bitsInWord) | lowPart;
+        }
+        const signed = decode7bits(bits);
+        out[baseOut + j] = signed * sh1ScaleInv + sh1Mid;
+      }
+    }
   }
 
-  return new Blob([header, body], { type: "application/octet-stream" });
+  if (hasSh2) {
+    const sh2 = extra.sh2;
+    const off = hasSh1 ? 9 : 0;
+    for (let i = 0; i < count; i++) {
+      const baseOut = i * shDim + off;
+      const baseWord = i * 4;
+      let outIdx = 0;
+      for (let w = 0; w < 4; w++) {
+        const word = sh2[baseWord + w];
+        for (let b = 0; b < 4; b++) {
+          let byteVal = (word >> (8 * b)) & 0xff;
+          if (byteVal & 0x80) byteVal |= ~0xff;
+          if (outIdx < 15) {
+            out[baseOut + outIdx] = byteVal * sh2ScaleInv + sh2Mid;
+          }
+          outIdx++;
+        }
+      }
+    }
+  }
+
+  if (hasSh3) {
+    const sh3 = extra.sh3;
+    const off = (hasSh1 ? 9 : 0) + (hasSh2 ? 15 : 0);
+    for (let i = 0; i < count; i++) {
+      const baseOut = i * shDim + off;
+      const baseWord = i * 4;
+      for (let j = 0; j < 21; j++) {
+        const bitStart  = j * 6;
+        const wordIndex = Math.floor(bitStart / 32);
+        const bitOffset = bitStart - wordIndex * 32;
+        let bits;
+        if (bitOffset <= 32 - 6) {
+          bits = (sh3[baseWord + wordIndex] >>> bitOffset) & 0x3f;
+        } else {
+          const bitsInWord = 32 - bitOffset;
+          const lowPart  = (sh3[baseWord + wordIndex] >>> bitOffset) & ((1 << bitsInWord) - 1);
+          const highPart = sh3[baseWord + wordIndex + 1] & ((1 << (6 - bitsInWord)) - 1);
+          bits = (highPart << bitsInWord) | lowPart;
+        }
+        const signed = decode6bits(bits);
+        out[baseOut + j] = signed * sh3ScaleInv + sh3Mid;
+      }
+    }
+  }
+
+  return { shDim, sh: out, hasSh1, hasSh2, hasSh3, sh1Min, sh1Max, sh2Min, sh2Max, sh3Min, sh3Max };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -904,10 +1123,10 @@ function makeGaussianSamples(n, seed) {
   const rand = mulberry32(seed >>> 0);
   const out = [];
   while (out.length < n) {
-    let u1 = Math.max(rand(), 1e-12);
-    let u2 = rand();
-    let u3 = Math.max(rand(), 1e-12);
-    let u4 = rand();
+    const u1 = Math.max(rand(), 1e-12);
+    const u2 = rand();
+    const u3 = Math.max(rand(), 1e-12);
+    const u4 = rand();
 
     const r1 = Math.sqrt(-2.0 * Math.log(u1));
     const t1 = 2.0 * Math.PI * u2;
@@ -949,15 +1168,6 @@ function logAddExp(a, b) {
 
 function clamp(x, lo, hi) {
   return Math.min(hi, Math.max(lo, x));
-}
-
-function logit(p) {
-  const x = clamp(p, 1e-6, 1 - 1e-6);
-  return Math.log(x / (1 - x));
-}
-
-function writeF32(dv, off, x) {
-  dv.setFloat32(off, x, true);
 }
 
 function microYield() {
