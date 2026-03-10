@@ -53,7 +53,7 @@ const sceneRight = new THREE.Scene();
 let leftMesh = null;
 let rightMesh = null;
 
-let originalName = "example.ply";
+let originalName = "-";
 let simplifiedName = "-";
 
 let originalBytes = null;
@@ -577,11 +577,30 @@ async function fetchBytes(url) {
   return await resp.arrayBuffer();
 }
 
+const EXAMPLE_FOLDER = "./examples";
+
+/** Fetch folder URL and parse server directory listing for .ply filenames. */
+async function listPlyFilesInFolder(folderUrl) {
+  const resp = await fetch(folderUrl, { method: "GET" });
+  if (!resp.ok) throw new Error(`Failed to list folder: ${folderUrl}`);
+  const html = await resp.text();
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const links = doc.querySelectorAll("a[href]");
+  const plyFiles = [];
+  for (const a of links) {
+    const href = (a.getAttribute("href") || "").trim();
+    if (href.endsWith(".ply") && !href.includes("/")) plyFiles.push(href);
+  }
+  return plyFiles;
+}
+
 async function boot() {
   try {
-    const demoOriginal = await fetchBytes("./example.ply");
-
-    await loadOriginalBytes(demoOriginal, "example.ply");
+    const fileList = await listPlyFilesInFolder(EXAMPLE_FOLDER);
+    if (fileList.length === 0) throw new Error(`No .ply files in ${EXAMPLE_FOLDER}`);
+    const chosen = fileList[Math.floor(Math.random() * fileList.length)];
+    const demoOriginal = await fetchBytes(`${EXAMPLE_FOLDER}/${chosen}`);
+    await loadOriginalBytes(demoOriginal, chosen);
     resize();
     animate();
   } catch (err) {
