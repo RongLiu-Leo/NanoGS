@@ -93,7 +93,7 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}, onPro
     }
 
     onStatus(`Pass ${iteration}: scoring ${edges.length} edges`);
-    const w = edgeCosts(edges, cur, cache, cp, Z, onStatus);
+    const w = await edgeCosts(edges, cur, cache, cp, Z, onStatus);
 
     const mergesNeeded = N - target;
     let P = mergesNeeded > 0 ? mergesNeeded : null;
@@ -148,6 +148,14 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}, onPro
     finalCount: cur.count,
     state: cur,
   };
+}
+
+async function getSplatCount(mesh) {
+  if (!mesh) return 0;
+  if (mesh.initialized) await mesh.initialized;
+  let count = 0;
+  mesh.forEachSplat(() => { count++; });
+  return count;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -205,6 +213,16 @@ async function extractSplatsWithSH(mesh, onStatus = () => {}) {
   const shDim = 3 + extraDim;
   const out = makeState(tmp.length, shDim);
 
+  // If we decoded packed SH extras, propagate their ranges once.
+  if (decoded) {
+    out.sh1Min = decoded.sh1Min;
+    out.sh1Max = decoded.sh1Max;
+    out.sh2Min = decoded.sh2Min;
+    out.sh2Max = decoded.sh2Max;
+    out.sh3Min = decoded.sh3Min;
+    out.sh3Max = decoded.sh3Max;
+  }
+
   for (let i = 0; i < tmp.length; i++) {
     const s = tmp[i];
     const i3 = 3 * i;
@@ -226,16 +244,10 @@ async function extractSplatsWithSH(mesh, onStatus = () => {}) {
     out.sh[is + 2] = s.sh0b;
 
     if (decoded) {
-        for (let k = 0; k < extraDim; k++) {
-            out.sh[is + 3 + k] = decoded.sh[i * extraDim + k];
-        }
+      for (let k = 0; k < extraDim; k++) {
+        out.sh[is + 3 + k] = decoded.sh[i * extraDim + k];
+      }
     }
-    out.sh1Min = decoded.sh1Min;
-    out.sh1Max = decoded.sh1Max;
-    out.sh2Min = decoded.sh2Min;
-    out.sh2Max = decoded.sh2Max;
-    out.sh3Min = decoded.sh3Min;
-    out.sh3Max = decoded.sh3Max;
   }
 
   onStatus(
@@ -408,7 +420,7 @@ function buildPerSplatCache(state, epsCov) {
 /* Edge costs                                                                 */
 /* -------------------------------------------------------------------------- */
 
-function edgeCosts(edges, state, cache, cp, Z, onStatus = () => {}, blockEdges = 8192) {
+async function edgeCosts(edges, state, cache, cp, Z, onStatus = () => {}, blockEdges = 8192) {
   const M = edges.length;
   const w = new Float32Array(M);
 
@@ -419,6 +431,10 @@ function edgeCosts(edges, state, cache, cp, Z, onStatus = () => {}, blockEdges =
       w[e] = fullCostPairCached(u, v, state, cache, cp, Z);
     }
     onStatus(`Edge costs: ${e1}/${M}`);
+
+    // Yield periodically so the main thread can render and
+    // UI (including progress snapshots) stays responsive.
+    await microYield();
   }
 
   return w;
@@ -1267,3 +1283,5 @@ export function packedFromState(state) {
   attachSparkSHExtras(packed, state);
   return packed;
 }
+
+export { getSplatCount };
