@@ -245,7 +245,7 @@ function updateStatsFromOriginalAndRatio() {
     statTargetEl.textContent = "-";
     return;
   }
-  const ratio = Math.min(0.95, Math.max(0.02, Number(ratioEl.value)));
+  const ratio = Math.min(0.99, Math.max(0.01, Number(ratioEl.value)));
   const target = Math.max(1, Math.ceil(originalSplatCount * ratio));
   statTargetEl.textContent = formatInt(target);
 }
@@ -479,7 +479,7 @@ async function simplifyCurrent() {
   }
 
   const params = {
-    ratio: Math.min(0.95, Math.max(0.02, Number(ratioEl.value))),
+    ratio: Math.min(0.99, Math.max(0.01, Number(ratioEl.value))),
     keepHistory: true,
   };
 
