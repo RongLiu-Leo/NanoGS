@@ -94,6 +94,7 @@ html, body {
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
+  z-index: 1;
 }
 
 #label-left {
@@ -377,12 +378,6 @@ html, body {
 .panel-title {
   font-size: 15px;
   font-weight: 700;
-}
-
-.panel-subtitle {
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--muted);
 }
 
 .badge {
