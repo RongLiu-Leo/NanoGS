@@ -500,3 +500,38 @@ html, body {
     top: 206px;
   }
 }
+#progress-bar {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: visible;
+  border: 1px solid rgba(255,255,255,0.06);
+  cursor: pointer;
+  touch-action: none;
+}
+
+#progress-bar-fill {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(98,198,255,0.45), rgba(98,198,255,0.95));
+  transition: width 0.12s ease;
+}
+
+#progress-bar-handle {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 16px;
+  height: 16px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: #ffffff;
+  border: 2px solid rgba(98,198,255,0.85);
+  box-shadow:
+    0 0 0 4px rgba(98,198,255,0.18),
+    0 4px 10px rgba(0,0,0,0.30);
+  transition: left 0.12s ease;
+  pointer-events: none;
+}
