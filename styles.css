@@ -442,24 +442,6 @@ html, body {
   color: var(--muted);
 }
 
-#status {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  right: 340px;
-  z-index: 70;
-  pointer-events: none;
-  padding: 9px 12px;
-  border-radius: 12px;
-  background: rgba(0,0,0,0.34);
-  border: 1px solid var(--border);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  font-size: 13px;
-  color: rgba(255,255,255,0.92);
-  box-shadow: var(--shadow);
-}
-
 @media (max-width: 1380px) {
   #topbar {
     right: 12px;
@@ -476,10 +458,6 @@ html, body {
 
   .panel-card {
     max-height: 240px;
-  }
-
-  #status {
-    right: 12px;
   }
 
   .label {

@@ -12,7 +12,6 @@ const handle = document.getElementById("handle");
 
 const labelLeft = document.getElementById("label-left");
 const labelRight = document.getElementById("label-right");
-const statusEl = document.getElementById("status");
 
 const inputOriginal = document.getElementById("input-original");
 const btnSimplify = document.getElementById("btn-simplify");
@@ -79,10 +78,6 @@ ratioNumberEl.addEventListener("input", () => {
   ratioEl.value = ratioNumberEl.value;
 });
 
-function setStatus(text) {
-  statusEl.textContent = text;
-}
-
 function updateLabels() {
   labelLeft.textContent = `Original: ${originalName}`;
   labelRight.textContent = `NanoGS: ${simplifiedName}`;
@@ -109,7 +104,6 @@ async function buildMeshFromPacked(packed) {
 }
 
 async function loadOriginalBytes(bytes, name) {
-  setStatus(`Loading original: ${name}`);
   const mesh = await buildMeshFromBytes(bytes);
   clearMesh(sceneLeft, leftMesh);
   leftMesh = mesh;
@@ -121,30 +115,24 @@ async function loadOriginalBytes(bytes, name) {
   latestSimplifyResult = null;
   btnDownload.disabled = true;
   clearHistory();
-
-  setStatus(`Loaded original: ${name}`);
 }
 
 async function loadSimplifiedBytes(bytes, name) {
-  setStatus(`Loading simplified: ${name}`);
   const mesh = await buildMeshFromBytes(bytes);
   clearMesh(sceneRight, rightMesh);
   rightMesh = mesh;
   sceneRight.add(rightMesh);
   simplifiedName = name;
   updateLabels();
-  setStatus(`Loaded simplified: ${name}`);
 }
 
 async function loadSimplifiedPacked(packed, name) {
-  setStatus(`Building simplified view: ${name}`);
   const mesh = await buildMeshFromPacked(packed);
   clearMesh(sceneRight, rightMesh);
   rightMesh = mesh;
   sceneRight.add(rightMesh);
   simplifiedName = name;
   updateLabels();
-  setStatus(`Simplified view ready: ${name}`);
 }
 
 function resize() {
@@ -327,10 +315,8 @@ async function scrubToProgressIndex(index) {
 
     simplifiedName = stageName;
     updateLabels();
-    setStatus(`Showing ${entry.label}: ${entry.currentCount} splats`);
   } catch (err) {
     console.error(err);
-    setStatus(`Failed to preview ${entry.label}: ${err.message}`);
   }
 }
 
@@ -408,7 +394,6 @@ function handleSimplifyProgress(evt) {
 
 async function simplifyCurrent() {
   if (!leftMesh) {
-    setStatus("No original splat loaded.");
     return;
   }
 
@@ -432,7 +417,7 @@ async function simplifyCurrent() {
     try {
     const t0 = performance.now();
 
-    const result = await simplifyMesh(leftMesh, params, setStatus, handleSimplifyProgress);
+    const result = await simplifyMesh(leftMesh, params, undefined, handleSimplifyProgress);
     latestSimplifyResult = result;
 
     const ratioTag = params.ratio.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
@@ -454,15 +439,11 @@ async function simplifyCurrent() {
     autoFollowProgress = true;
 
     const t1 = performance.now();
-    setStatus(
-      `Done. ${result.originalCount} → ${result.finalCount} splats in ${((t1 - t0) / 1000).toFixed(2)} s.`
-    );
 
     btnDownload.disabled = false;
   } catch (err) {
     isSimplifying = false;
     console.error(err);
-    setStatus(`Simplify failed: ${err.message}`);
   } finally {
     isSimplifying = false;
     btnSimplify.disabled = false;
@@ -478,7 +459,6 @@ inputOriginal.addEventListener("change", async (e) => {
     await loadOriginalBytes(bytes, file.name);
   } catch (err) {
     console.error(err);
-    setStatus(`Failed to load original file: ${file.name}`);
   }
 });
 
@@ -486,10 +466,8 @@ btnSimplify.addEventListener("click", simplifyCurrent);
 
 btnDownload.addEventListener("click", () => {
   if (!latestSimplifyResult?.packed) {
-    setStatus("Download export is not implemented yet for in-browser packed results.");
     return;
   }
-  setStatus("Download export is not implemented yet for in-browser packed results.");
 });
 
 window.addEventListener("resize", resize);
@@ -522,7 +500,6 @@ async function boot() {
     animate();
   } catch (err) {
     console.error(err);
-    setStatus("Boot failed. Check that example.ply and example_0.1.ply exist next to index.html.");
     resize();
     setSplit(0.5);
     animate();
