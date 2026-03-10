@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { SplatMesh } from "@sparkjsdev/spark";
-import { simplifyMesh, packedFromState, getSplatCount } from "./simplify.js";
+import { simplifyMesh, packedFromState, getSplatCount, stateToPlyBytes } from "./simplify.js";
 
 const app = document.getElementById("app");
 const viewer = document.getElementById("viewer");
@@ -277,10 +277,26 @@ function updateProgressHeader(entry, options = {}) {
   updateProgressVisual(progress01);
 }
 
+function downloadPlyForEntry(entry, filename) {
+  if (!entry?.snapshot) return;
+  const bytes = stateToPlyBytes(entry.snapshot);
+  const blob = new Blob([bytes], { type: "application/octet-stream" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function renderHistory() {
   trackListEl.innerHTML = "";
 
+  const baseName = originalName.replace(/\.ply$/i, "");
+
   historyEntries.forEach((entry, index) => {
+    const wrap = document.createElement("div");
+    wrap.className = "track-item-wrap";
+
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "track-item" + (index === activeHistoryIndex ? " active" : "");
@@ -305,7 +321,21 @@ function renderHistory() {
       await previewHistoryEntry(index);
     });
 
-    trackListEl.appendChild(btn);
+    const downloadBtn = document.createElement("button");
+    downloadBtn.type = "button";
+    downloadBtn.className = "track-download";
+    downloadBtn.title = "Download as PLY";
+    downloadBtn.innerHTML = "↓";
+    downloadBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const filename = `${baseName}_iteration_${iteration}.ply`;
+      downloadPlyForEntry(entry, filename);
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(downloadBtn);
+    trackListEl.appendChild(wrap);
   });
 }
 

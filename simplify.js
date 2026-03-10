@@ -1284,4 +1284,134 @@ export function packedFromState(state) {
   return packed;
 }
 
+/* -------------------------------------------------------------------------- */
+/* PLY export (same format as loaded PLY: binary, 3DGS properties)             */
+/* -------------------------------------------------------------------------- */
+
+const SH_C0 = 0.28209479177387814;
+
+function logit(p) {
+  const eps = 1e-8;
+  p = clamp(p, eps, 1 - eps);
+  return Math.log(p / (1 - p));
+}
+
+/**
+ * Number of f_rest coefficients to export so PLY matches loaded SH degree.
+ * shDim 3 → 0 (SH0), 12 → 9 (SH1), 27 → 24 (SH2), 48 → 45 (SH3).
+ */
+function fRestCountFromShDim(shDim) {
+  const rest = Math.max(0, (shDim ?? 3) - 3);
+  return rest;
+}
+
+/**
+ * Build binary little-endian PLY bytes from simplification state so the file
+ * can be re-loaded with the same format as the original PLY (3D Gaussian Splatting).
+ * Header and vertex layout match the loaded PLY: SH0 → no f_rest, SH1 → f_rest_0..8, etc.
+ * @param {object} state - State from simplify (mu, sc, q, op, sh, shDim)
+ * @returns {ArrayBuffer} PLY file bytes
+ */
+export function stateToPlyBytes(state) {
+  if (!state || !state.count) {
+    return new ArrayBuffer(0);
+  }
+
+  const N = state.count;
+  const shDim = state.shDim ?? 3;
+  const numFRest = fRestCountFromShDim(shDim);
+  const vertexSize =
+    3 + 3 + 1 + 1 + 3 + 4 + numFRest; // xyz, f_dc_0..2, opacity, scale_0..2, rot_0..3, f_rest (0/9/24/45)
+  const vertexBytes = vertexSize * 4; // 4 bytes per float
+  const headerLines = [
+    "ply",
+    "format binary_little_endian 1.0",
+    "element vertex " + N,
+    "property float x",
+    "property float y",
+    "property float z",
+    "property float f_dc_0",
+    "property float f_dc_1",
+    "property float f_dc_2",
+    "property float opacity",
+    "property float scale_0",
+    "property float scale_1",
+    "property float scale_2",
+    "property float rot_0",
+    "property float rot_1",
+    "property float rot_2",
+    "property float rot_3",
+  ];
+  for (let i = 0; i < numFRest; i++) {
+    headerLines.push("property float f_rest_" + i);
+  }
+  headerLines.push("end_header");
+
+  const header = headerLines.join("\n") + "\n";
+  const headerBytes = new TextEncoder().encode(header);
+  const totalBytes = headerBytes.length + N * vertexBytes;
+  const buffer = new ArrayBuffer(totalBytes);
+  const view = new DataView(buffer);
+  const u8 = new Uint8Array(buffer);
+  u8.set(headerBytes, 0);
+
+  let offset = headerBytes.length;
+
+  for (let i = 0; i < N; i++) {
+    const i3 = 3 * i;
+    const i4 = 4 * i;
+    const is = shDim * i;
+
+    // x, y, z
+    view.setFloat32(offset, state.mu[i3], true);
+    offset += 4;
+    view.setFloat32(offset, state.mu[i3 + 1], true);
+    offset += 4;
+    view.setFloat32(offset, state.mu[i3 + 2], true);
+    offset += 4;
+
+    // f_dc_0, f_dc_1, f_dc_2  (file value = (rgb - 0.5) / SH_C0)
+    const r = state.sh[is] ?? 0;
+    const g = state.sh[is + 1] ?? 0;
+    const b = state.sh[is + 2] ?? 0;
+    view.setFloat32(offset, (r - 0.5) / SH_C0, true);
+    offset += 4;
+    view.setFloat32(offset, (g - 0.5) / SH_C0, true);
+    offset += 4;
+    view.setFloat32(offset, (b - 0.5) / SH_C0, true);
+    offset += 4;
+
+    // opacity (logit so loader's sigmoid gives back [0,1])
+    view.setFloat32(offset, logit(state.op[i]), true);
+    offset += 4;
+
+    // scale_0, scale_1, scale_2
+    view.setFloat32(offset, state.sc[i3], true);
+    offset += 4;
+    view.setFloat32(offset, state.sc[i3 + 1], true);
+    offset += 4;
+    view.setFloat32(offset, state.sc[i3 + 2], true);
+    offset += 4;
+
+    // rot_0, rot_1, rot_2, rot_3 (w, x, y, z)
+    view.setFloat32(offset, state.q[i4], true);
+    offset += 4;
+    view.setFloat32(offset, state.q[i4 + 1], true);
+    offset += 4;
+    view.setFloat32(offset, state.q[i4 + 2], true);
+    offset += 4;
+    view.setFloat32(offset, state.q[i4 + 3], true);
+    offset += 4;
+
+    // f_rest_0 .. f_rest_(numFRest-1) — only as many as loaded (SH0: none, SH1: 9, SH2: 24, SH3: 45)
+    for (let k = 0; k < numFRest; k++) {
+      const val = state.sh[is + 3 + k] ?? 0;
+      view.setFloat32(offset, val, true);
+      offset += 4;
+    }
+  }
+
+  return buffer;
+}
+
 export { getSplatCount };
