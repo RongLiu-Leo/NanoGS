@@ -609,16 +609,41 @@ async function simplifyCurrent() {
   }
 }
 
-inputOriginal.addEventListener("change", async (e) => {
-  const file = e.target.files?.[0];
+async function loadPlyFile(file) {
   if (!file) return;
-
   try {
     const bytes = await file.arrayBuffer();
     await loadOriginalBytes(bytes, file.name);
   } catch (err) {
     console.error(err);
   }
+}
+
+inputOriginal.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  await loadPlyFile(file);
+});
+
+viewer.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  const hasPly = Array.from(e.dataTransfer?.items || []).some(
+    (item) => item.kind === "file" && /\.ply$/i.test(item.getAsFile()?.name ?? "")
+  );
+  if (hasPly) {
+    e.dataTransfer.dropEffect = "copy";
+    viewer.classList.add("drag-over");
+  }
+});
+
+viewer.addEventListener("dragleave", (e) => {
+  if (!viewer.contains(e.relatedTarget)) viewer.classList.remove("drag-over");
+});
+
+viewer.addEventListener("drop", async (e) => {
+  e.preventDefault();
+  viewer.classList.remove("drag-over");
+  const file = Array.from(e.dataTransfer?.files || []).find((f) => /\.ply$/i.test(f.name));
+  await loadPlyFile(file);
 });
 
 btnSimplify.addEventListener("click", simplifyCurrent);
