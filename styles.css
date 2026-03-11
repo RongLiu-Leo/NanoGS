@@ -437,6 +437,68 @@ html, body {
   background: rgba(98, 198, 255, 0.28);
 }
 
+/* Simplify button states: idle (default), loading, success */
+#btn-simplify .btn-simplify-spinner,
+#btn-simplify .btn-simplify-tick {
+  display: none;
+}
+
+#btn-simplify.btn-simplify-loading {
+  pointer-events: none;
+}
+
+#btn-simplify.btn-simplify-loading .btn-simplify-label {
+  display: none;
+}
+
+#btn-simplify.btn-simplify-loading .btn-simplify-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: btn-simplify-spin 0.7s linear infinite;
+}
+
+@keyframes btn-simplify-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#btn-simplify.btn-simplify-success .btn-simplify-label {
+  display: none;
+}
+
+#btn-simplify.btn-simplify-success .btn-simplify-spinner {
+  display: none;
+}
+
+#btn-simplify.btn-simplify-success .btn-simplify-tick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  animation: btn-simplify-tick 0.35s ease-out;
+}
+
+@keyframes btn-simplify-tick {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .hidden-input {
   display: none;
 }

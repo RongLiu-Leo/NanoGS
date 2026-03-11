@@ -514,8 +514,18 @@ function handleSimplifyProgress(evt) {
   }
 }
 
+function setSimplifyButtonState(state) {
+  btnSimplify.classList.remove("btn-simplify-loading", "btn-simplify-success");
+  btnSimplify.disabled = false;
+  if (state === "loading") {
+    btnSimplify.classList.add("btn-simplify-loading");
+  } else if (state === "success") {
+    btnSimplify.classList.add("btn-simplify-success");
+  }
+}
+
 async function simplifyCurrent() {
-  if (!leftMesh) {
+  if (!leftMesh || isSimplifying) {
     return;
   }
 
@@ -525,7 +535,11 @@ async function simplifyCurrent() {
     keepHistory: true,
   };
 
-  btnSimplify.disabled = true;
+  setSimplifyButtonState("loading");
+  // Yield so the browser paints the spinner before we do blocking work
+  await new Promise((r) => requestAnimationFrame(r));
+  await new Promise((r) => requestAnimationFrame(r));
+
   clearHistory();
 
   // When starting a new simplification, clear the previous progress stage
@@ -581,12 +595,17 @@ async function simplifyCurrent() {
 
     const t1 = performance.now();
 
+    setSimplifyButtonState("success");
+    setTimeout(() => setSimplifyButtonState("idle"), 1200);
   } catch (err) {
     isSimplifying = false;
     console.error(err);
+    setSimplifyButtonState("idle");
   } finally {
     isSimplifying = false;
-    btnSimplify.disabled = false;
+    if (!btnSimplify.classList.contains("btn-simplify-success")) {
+      setSimplifyButtonState("idle");
+    }
   }
 }
 
