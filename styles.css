@@ -254,6 +254,11 @@ html, body {
   min-width: 0;
 }
 
+.hyper-params .control-group-half {
+  flex: 1 1 0;
+  min-width: 120px;
+}
+
 .file-btn,
 #btn-simplify {
   width: 100%;

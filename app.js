@@ -20,6 +20,8 @@ const btnDownload = null;
 
 const ratioEl = document.getElementById("ratio");
 const ratioNumberEl = document.getElementById("ratio-number");
+const pCapRatioEl = document.getElementById("p-cap-ratio");
+const pCapRatioNumberEl = document.getElementById("p-cap-ratio-number");
 
 const progressPercentEl = document.getElementById("progress-percent");
 const progressBarFillEl = document.getElementById("progress-bar-fill");
@@ -74,6 +76,14 @@ ratioEl.addEventListener("input", () => {
 ratioNumberEl.addEventListener("input", () => {
   ratioEl.value = ratioNumberEl.value;
   updateStatsFromOriginalAndRatio();
+});
+
+pCapRatioEl.addEventListener("input", () => {
+  pCapRatioNumberEl.value = pCapRatioEl.value;
+});
+
+pCapRatioNumberEl.addEventListener("input", () => {
+  pCapRatioEl.value = pCapRatioNumberEl.value;
 });
 
 function updateLabels() {
@@ -511,6 +521,7 @@ async function simplifyCurrent() {
 
   const params = {
     ratio: Math.min(0.99, Math.max(0.01, Number(ratioEl.value))),
+    pCapRatio: Math.min(0.5, Math.max(0.01, Number(pCapRatioEl.value))),
     keepHistory: true,
   };
 

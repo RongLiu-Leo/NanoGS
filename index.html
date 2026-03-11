@@ -52,13 +52,22 @@
             </div>
 
             <div class="hyper-params">
-              <div class="control-group control-group-wide">
+              <div class="control-group control-group-half">
                 <div class="control-group-header">
                   <label for="ratio">Ratio</label>
                 </div>
                 <div class="ratio-input-row">
                   <input id="ratio" type="range" min="0.01" max="0.99" step="0.01" value="0.10" />
                   <input id="ratio-number" type="number" min="0.01" max="0.99" step="0.01" value="0.10" />
+                </div>
+              </div>
+              <div class="control-group control-group-half">
+                <div class="control-group-header">
+                  <label for="p-cap-ratio">Merge Cap</label>
+                </div>
+                <div class="ratio-input-row">
+                  <input id="p-cap-ratio" type="range" min="0.01" max="0.5" step="0.01" value="0.5" />
+                  <input id="p-cap-ratio-number" type="number" min="0.01" max="0.5" step="0.01" value="0.5" />
                 </div>
               </div>
             </div>

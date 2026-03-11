@@ -11,6 +11,7 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}, onPro
 
   const rp = {
     ratio: clamp(Number(params.ratio ?? 0.5), 1e-6, 0.999999),
+    pCapRatio: clamp(Number(params.pCapRatio ?? 0.5), 0.01, 0.5),
     k: 16,
     opacityThreshold: 0.1,
   };
@@ -96,7 +97,8 @@ export async function simplifyMesh(mesh, params = {}, onStatus = () => {}, onPro
     const w = await edgeCosts(edges, cur, cache, cp, Z, onStatus);
 
     const mergesNeeded = N - target;
-    let P = mergesNeeded > 0 ? mergesNeeded : null;
+    const pCap = Math.max(1, Math.floor(rp.pCapRatio * N0));
+    let P = mergesNeeded > 0 ? Math.min(mergesNeeded, pCap) : null;
     const pairs = greedyPairsFromEdges(edges, w, N, P);
 
     onStatus(
