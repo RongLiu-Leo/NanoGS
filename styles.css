@@ -213,6 +213,119 @@ html, body {
   margin-top: 4px;
 }
 
+#brand-details {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#brand-details-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  font-weight: 500;
+  user-select: none;
+}
+
+#brand-details-summary::-webkit-details-marker,
+#brand-details-summary::marker {
+  display: none;
+}
+
+#brand-details-summary::before {
+  content: "▶";
+  font-size: 8px;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+#brand-details[open] #brand-details-summary::before {
+  transform: rotate(90deg);
+}
+
+#brand-authors {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.brand-co-first {
+  display: block;
+  font-size: 10px;
+  opacity: 0.85;
+  margin-bottom: 6px;
+}
+
+.brand-author-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 0;
+}
+
+.brand-author-list a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-author-list a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.brand-sep {
+  margin: 0 5px;
+  opacity: 0.6;
+}
+
+.brand-institutes {
+  margin-top: 6px;
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.brand-institutes a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-institutes a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+#brand-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.brand-badge:hover {
+  color: var(--accent);
+  border-color: var(--accent-2);
+  background: var(--accent-2);
+}
+
 #controls {
   display: flex;
   flex-direction: column;
