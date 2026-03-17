@@ -15,7 +15,7 @@ MyHandler.extensions_map.update({
     '.mjs': 'text/javascript',
 })
 
-PORT = 8000
+PORT = 8010
 with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
     print(f"Serving at http://localhost:{PORT}")
     httpd.serve_forever()

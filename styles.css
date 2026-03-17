@@ -346,6 +346,110 @@ html, body {
   flex: 1 1 0;
 }
 
+.controls-row-example .control-group-example {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+/* Custom example dropdown (trigger + options list matching panel UI) */
+.example-dropdown {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.example-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 8px 7px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  text-align: left;
+}
+.example-dropdown-trigger:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+.example-dropdown-trigger:focus {
+  outline: none;
+  border-color: rgba(98, 198, 255, 0.85);
+  box-shadow: 0 0 0 3px rgba(98, 198, 255, 0.22);
+}
+.example-dropdown-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.example-dropdown-chevron {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  opacity: 0.9;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='%2362c6ff'%3E%3Cpath d='M2.5 4.5L6 8l3.5-3.5'/%3E%3C/svg%3E") no-repeat center;
+  transition: transform 0.2s ease;
+}
+.example-dropdown[data-open="true"] .example-dropdown-chevron {
+  transform: rotate(180deg);
+}
+
+.example-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  padding: 6px 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  z-index: 100;
+}
+.example-dropdown-list[hidden] {
+  display: none;
+}
+
+.example-dropdown-option {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.example-dropdown-option:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.example-dropdown-option[aria-selected="true"] {
+  background: var(--accent-2);
+  color: var(--text);
+}
+.example-dropdown-option[data-value="__custom__"] {
+  color: var(--muted);
+}
+
 .hyper-params {
   display: flex;
   flex-wrap: wrap;

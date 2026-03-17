@@ -9,14 +9,14 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.178.0/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.178.0/examples/jsm/",
-      "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.10/spark.module.js"
+      "three": "./scripts/three/three.module.js",
+      "three/addons/": "./scripts/three/addons/",
+      "@sparkjsdev/spark": "./scripts/spark/spark.module.js"
     }
   }
   </script>
 
-  <script type="module" src="./app.js"></script>
+  <script type="module" src="./scripts/app.js"></script>
 </head>
 <body>
   <div id="app">
@@ -43,8 +43,8 @@
               <summary id="brand-details-summary">Authors & Links</summary>
               <div id="brand-authors">
                 <div class="brand-author-list">
-                  <a href="https://saliteta.github.io/" rel="noopener">Butian Xiong<sup>*1</sup></a><span class="brand-sep">·</span>
-                  <a href="https://rongliu-leo.github.io/" rel="noopener">Rong Liu<sup>*1</sup></a><span class="brand-sep">·</span>
+                  <a href="https://saliteta.github.io/" rel="noopener">Butian Xiong<sup>1*</sup></a><span class="brand-sep">·</span>
+                  <a href="https://rongliu-leo.github.io/" rel="noopener">Rong Liu<sup>1*</sup></a><span class="brand-sep">·</span>
                   <a href="https://www.linkedin.com/in/tiantianzhou/" rel="noopener">Tiantian Zhou<sup>1</sup></a><span class="brand-sep">·</span>
                   <a href="https://www.linkedin.com/in/meida-chen-938a265b/" rel="noopener">Meida Chen<sup>1</sup></a><span class="brand-sep">·</span>
                   <a href="https://zhiwenfan.github.io/" rel="noopener">Zhiwen Fan<sup>2</sup></a><span class="brand-sep">·</span>
@@ -63,6 +63,19 @@
           </div>
 
           <div id="controls">
+            <div class="controls-row controls-row-example">
+              <div class="control-group control-group-example">
+                <label for="example-dropdown-trigger">Example</label>
+                <div class="example-dropdown" id="example-dropdown">
+                  <button type="button" class="example-dropdown-trigger" id="example-dropdown-trigger" aria-haspopup="listbox" aria-expanded="false" title="Current PLY / pick an example">
+                    <span class="example-dropdown-label">—</span>
+                    <span class="example-dropdown-chevron" aria-hidden="true"></span>
+                  </button>
+                  <div class="example-dropdown-list" id="example-dropdown-list" role="listbox" hidden>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="controls-row">
               <label class="file-btn">
                 Load

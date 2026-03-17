@@ -15,6 +15,10 @@ const labelLeft = document.getElementById("label-left");
 const labelRight = document.getElementById("label-right");
 
 const inputOriginal = document.getElementById("input-original");
+const exampleDropdownEl = document.getElementById("example-dropdown");
+const exampleDropdownTrigger = document.getElementById("example-dropdown-trigger");
+const exampleDropdownLabel = exampleDropdownTrigger?.querySelector(".example-dropdown-label");
+const exampleDropdownList = document.getElementById("example-dropdown-list");
 const btnSimplify = document.getElementById("btn-simplify");
 const btnDownload = null;
 
@@ -43,7 +47,8 @@ layerLeft.appendChild(rendererLeft.domElement);
 layerRight.appendChild(rendererRight.domElement);
 
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-camera.position.set(0, 0, 3);
+camera.position.set(-1.5, -1.5, 1.5);
+camera.up.set(0, -1, 0);
 
 const controls = new TrackballControls(camera, interactionLayer);
 controls.target.set(0, 0, 0);
@@ -133,6 +138,7 @@ async function loadOriginalBytes(bytes, name) {
   // Smoothly move the divider/handle to the far right.
   animateSplitTo(1.0);
   updateLabels();
+  syncExampleSelectToCurrent();
 }
 
 async function loadSimplifiedBytes(bytes, name) {
@@ -614,6 +620,7 @@ async function loadPlyFile(file) {
   try {
     const bytes = await file.arrayBuffer();
     await loadOriginalBytes(bytes, file.name);
+    populateExampleSelect();
   } catch (err) {
     console.error(err);
   }
@@ -665,6 +672,8 @@ async function fetchBytes(url) {
 
 const EXAMPLE_FOLDER = "./examples";
 
+let exampleFileList = [];
+
 /** Fetch folder URL and parse server directory listing for .ply filenames. */
 async function listPlyFilesInFolder(folderUrl) {
   const resp = await fetch(folderUrl, { method: "GET" });
@@ -680,13 +689,66 @@ async function listPlyFilesInFolder(folderUrl) {
   return plyFiles;
 }
 
+function setExampleDropdownOpen(open) {
+  if (!exampleDropdownEl || !exampleDropdownList) return;
+  exampleDropdownEl.dataset.open = open ? "true" : "false";
+  exampleDropdownList.hidden = !open;
+  exampleDropdownTrigger?.setAttribute("aria-expanded", String(open));
+}
+
+function populateExampleSelect() {
+  if (!exampleDropdownList) return;
+  exampleDropdownList.innerHTML = "";
+  const isExample = exampleFileList.includes(originalName);
+  if (!isExample && originalName !== "-") {
+    const opt = document.createElement("button");
+    opt.type = "button";
+    opt.className = "example-dropdown-option";
+    opt.setAttribute("role", "option");
+    opt.dataset.value = "__custom__";
+    opt.setAttribute("aria-selected", "true");
+    opt.textContent = `Current: ${originalName}`;
+    exampleDropdownList.appendChild(opt);
+  }
+  for (const name of exampleFileList) {
+    const opt = document.createElement("button");
+    opt.type = "button";
+    opt.className = "example-dropdown-option";
+    opt.setAttribute("role", "option");
+    opt.dataset.value = name;
+    opt.setAttribute("aria-selected", name === originalName ? "true" : "false");
+    opt.textContent = name;
+    exampleDropdownList.appendChild(opt);
+  }
+  syncExampleSelectToCurrent();
+}
+
+function syncExampleSelectToCurrent() {
+  if (!exampleDropdownLabel || !exampleDropdownList) return;
+  const isExample = exampleFileList.includes(originalName);
+  exampleDropdownLabel.textContent = isExample ? originalName : (originalName !== "-" ? `Current: ${originalName}` : "—");
+  exampleDropdownList.querySelectorAll(".example-dropdown-option").forEach((el) => {
+    el.setAttribute("aria-selected", el.dataset.value === originalName || (el.dataset.value === "__custom__" && !isExample) ? "true" : "false");
+  });
+}
+
+async function loadExampleByName(filename) {
+  const url = `${EXAMPLE_FOLDER}/${filename}`;
+  const bytes = await fetchBytes(url);
+  await loadOriginalBytes(bytes, filename);
+  setExampleDropdownOpen(false);
+  populateExampleSelect();
+}
+
 async function boot() {
   try {
-    const fileList = await listPlyFilesInFolder(EXAMPLE_FOLDER);
-    if (fileList.length === 0) throw new Error(`No .ply files in ${EXAMPLE_FOLDER}`);
-    const chosen = fileList[Math.floor(Math.random() * fileList.length)];
+    exampleFileList = await listPlyFilesInFolder(EXAMPLE_FOLDER);
+    if (exampleFileList.length === 0) throw new Error(`No .ply files in ${EXAMPLE_FOLDER}`);
+    populateExampleSelect();
+    const chosen = exampleFileList[Math.floor(Math.random() * exampleFileList.length)];
     const demoOriginal = await fetchBytes(`${EXAMPLE_FOLDER}/${chosen}`);
     await loadOriginalBytes(demoOriginal, chosen);
+    syncExampleSelectToCurrent();
     resize();
     animate();
   } catch (err) {
@@ -696,6 +758,38 @@ async function boot() {
     animate();
   }
 }
+
+exampleDropdownTrigger?.addEventListener("click", (e) => {
+  e.preventDefault();
+  const open = exampleDropdownEl?.dataset.open === "true";
+  setExampleDropdownOpen(!open);
+});
+
+exampleDropdownList?.addEventListener("click", (e) => {
+  const opt = e.target.closest(".example-dropdown-option");
+  if (!opt) return;
+  const value = opt.dataset.value;
+  if (!value || value === "__custom__") return;
+  (async () => {
+    try {
+      await loadExampleByName(value);
+    } catch (err) {
+      console.error(err);
+    }
+  })();
+});
+
+document.addEventListener("click", (e) => {
+  if (exampleDropdownEl?.dataset.open === "true" && !exampleDropdownEl.contains(e.target)) {
+    setExampleDropdownOpen(false);
+  }
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && exampleDropdownEl?.dataset.open === "true") {
+    setExampleDropdownOpen(false);
+  }
+});
 
 function displayedProgressFromIndex(index) {
   if (!historyEntries.length || index < 0) return 0;
