@@ -423,6 +423,30 @@ html, body {
   display: none;
 }
 
+/* Example dropdown custom scrollbar – match app style */
+.example-dropdown-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.example-dropdown-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.example-dropdown-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+}
+
+.example-dropdown-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.28);
+}
+
+.example-dropdown-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.18) transparent;
+}
+
 .example-dropdown-option {
   display: block;
   width: 100%;
