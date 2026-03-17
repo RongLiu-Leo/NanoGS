@@ -670,23 +670,18 @@ async function fetchBytes(url) {
   return await resp.arrayBuffer();
 }
 
-const EXAMPLE_FOLDER = "./examples";
+const EXAMPLE_RAW_BASE = "https://raw.githubusercontent.com/RongLiu-Leo/NanoGS/main/examples";
+const EXAMPLE_API_URL = "https://api.github.com/repos/RongLiu-Leo/NanoGS/contents/examples";
 
 let exampleFileList = [];
 
-/** Fetch folder URL and parse server directory listing for .ply filenames. */
-async function listPlyFilesInFolder(folderUrl) {
-  const resp = await fetch(folderUrl, { method: "GET" });
-  if (!resp.ok) throw new Error(`Failed to list folder: ${folderUrl}`);
-  const html = await resp.text();
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const links = doc.querySelectorAll("a[href]");
-  const plyFiles = [];
-  for (const a of links) {
-    const href = (a.getAttribute("href") || "").trim();
-    if (href.endsWith(".ply") && !href.includes("/")) plyFiles.push(href);
-  }
-  return plyFiles;
+/** List .ply filenames in the NanoGS examples folder via GitHub API. */
+async function listPlyFilesInFolder() {
+  const resp = await fetch(EXAMPLE_API_URL, { method: "GET" });
+  if (!resp.ok) throw new Error(`Failed to list folder: ${EXAMPLE_API_URL}`);
+  const entries = await resp.json();
+  if (!Array.isArray(entries)) return [];
+  return entries.filter((e) => e.name && e.name.endsWith(".ply")).map((e) => e.name);
 }
 
 function setExampleDropdownOpen(open) {
@@ -733,7 +728,7 @@ function syncExampleSelectToCurrent() {
 }
 
 async function loadExampleByName(filename) {
-  const url = `${EXAMPLE_FOLDER}/${filename}`;
+  const url = `${EXAMPLE_RAW_BASE}/${filename}`;
   const bytes = await fetchBytes(url);
   await loadOriginalBytes(bytes, filename);
   setExampleDropdownOpen(false);
@@ -742,11 +737,11 @@ async function loadExampleByName(filename) {
 
 async function boot() {
   try {
-    exampleFileList = await listPlyFilesInFolder(EXAMPLE_FOLDER);
-    if (exampleFileList.length === 0) throw new Error(`No .ply files in ${EXAMPLE_FOLDER}`);
+    exampleFileList = await listPlyFilesInFolder();
+    if (exampleFileList.length === 0) throw new Error(`No .ply files in ${EXAMPLE_API_URL}`);
     populateExampleSelect();
     const chosen = exampleFileList[Math.floor(Math.random() * exampleFileList.length)];
-    const demoOriginal = await fetchBytes(`${EXAMPLE_FOLDER}/${chosen}`);
+    const demoOriginal = await fetchBytes(`${EXAMPLE_RAW_BASE}/${chosen}`);
     await loadOriginalBytes(demoOriginal, chosen);
     syncExampleSelectToCurrent();
     resize();
