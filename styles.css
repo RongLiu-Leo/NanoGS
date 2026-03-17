@@ -720,6 +720,47 @@ html, body {
   display: none;
 }
 
+/* Overlay shown while loading original PLY (examples or local) */
+#loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: radial-gradient(circle at center, rgba(15, 17, 21, 0.1), rgba(15, 17, 21, 0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+#loading-overlay.visible {
+  display: flex;
+}
+
+.loading-overlay-spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.95);
+  animation: loading-overlay-spin 0.7s linear infinite;
+  margin-right: 12px;
+}
+
+.loading-overlay-text {
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+@keyframes loading-overlay-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 #progress-panel {
   position: relative;
   width: 316px;

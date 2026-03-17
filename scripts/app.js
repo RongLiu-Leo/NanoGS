@@ -15,6 +15,7 @@ const labelLeft = document.getElementById("label-left");
 const labelRight = document.getElementById("label-right");
 
 const inputOriginal = document.getElementById("input-original");
+const loadingOverlay = document.getElementById("loading-overlay");
 const exampleDropdownEl = document.getElementById("example-dropdown");
 const exampleDropdownTrigger = document.getElementById("example-dropdown-trigger");
 const exampleDropdownLabel = exampleDropdownTrigger?.querySelector(".example-dropdown-label");
@@ -117,6 +118,8 @@ async function buildMeshFromPacked(packed) {
 }
 
 async function loadOriginalBytes(bytes, name) {
+  // Show loading state while we parse and build the original mesh.
+  if (loadingOverlay) loadingOverlay.classList.add("visible");
   const mesh = await buildMeshFromBytes(bytes);
   clearMesh(sceneLeft, leftMesh);
   leftMesh = mesh;
@@ -139,6 +142,7 @@ async function loadOriginalBytes(bytes, name) {
   animateSplitTo(1.0);
   updateLabels();
   syncExampleSelectToCurrent();
+  if (loadingOverlay) loadingOverlay.classList.remove("visible");
 }
 
 async function loadSimplifiedBytes(bytes, name) {
@@ -618,11 +622,14 @@ async function simplifyCurrent() {
 async function loadPlyFile(file) {
   if (!file) return;
   try {
+    if (loadingOverlay) loadingOverlay.classList.add("visible");
     const bytes = await file.arrayBuffer();
     await loadOriginalBytes(bytes, file.name);
     populateExampleSelect();
   } catch (err) {
     console.error(err);
+  } finally {
+    if (loadingOverlay) loadingOverlay.classList.remove("visible");
   }
 }
 
@@ -729,9 +736,13 @@ function syncExampleSelectToCurrent() {
 
 async function loadExampleByName(filename) {
   const url = `${EXAMPLE_RAW_BASE}/${filename}`;
-  const bytes = await fetchBytes(url);
-  await loadOriginalBytes(bytes, filename);
-  setExampleDropdownOpen(false);
+  try {
+    if (loadingOverlay) loadingOverlay.classList.add("visible");
+    const bytes = await fetchBytes(url);
+    await loadOriginalBytes(bytes, filename);
+  } finally {
+    if (loadingOverlay) loadingOverlay.classList.remove("visible");
+  }
   populateExampleSelect();
 }
 
@@ -741,6 +752,7 @@ async function boot() {
     if (exampleFileList.length === 0) throw new Error(`No .ply files in ${EXAMPLE_API_URL}`);
     populateExampleSelect();
     const chosen = exampleFileList[Math.floor(Math.random() * exampleFileList.length)];
+    if (loadingOverlay) loadingOverlay.classList.add("visible");
     const demoOriginal = await fetchBytes(`${EXAMPLE_RAW_BASE}/${chosen}`);
     await loadOriginalBytes(demoOriginal, chosen);
     syncExampleSelectToCurrent();
@@ -751,6 +763,8 @@ async function boot() {
     resize();
     setSplit(0.5);
     animate();
+  } finally {
+    if (loadingOverlay) loadingOverlay.classList.remove("visible");
   }
 }
 
@@ -765,6 +779,8 @@ exampleDropdownList?.addEventListener("click", (e) => {
   if (!opt) return;
   const value = opt.dataset.value;
   if (!value || value === "__custom__") return;
+  // Close the dropdown immediately, before showing the loading overlay.
+  setExampleDropdownOpen(false);
   (async () => {
     try {
       await loadExampleByName(value);
