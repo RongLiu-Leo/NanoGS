@@ -1387,12 +1387,13 @@ export function stateToPlyBytes(state) {
     view.setFloat32(offset, logit(state.op[i]), true);
     offset += 4;
 
-    // scale_0, scale_1, scale_2
-    view.setFloat32(offset, state.sc[i3], true);
+    // scale_0, scale_1, scale_2 (PLY stores log(scale); loader applies exp() when loading)
+    const scaleEps = 1e-12;
+    view.setFloat32(offset, Math.log(Math.max(state.sc[i3], scaleEps)), true);
     offset += 4;
-    view.setFloat32(offset, state.sc[i3 + 1], true);
+    view.setFloat32(offset, Math.log(Math.max(state.sc[i3 + 1], scaleEps)), true);
     offset += 4;
-    view.setFloat32(offset, state.sc[i3 + 2], true);
+    view.setFloat32(offset, Math.log(Math.max(state.sc[i3 + 2], scaleEps)), true);
     offset += 4;
 
     // rot_0, rot_1, rot_2, rot_3 (w, x, y, z)
