@@ -1,7 +1,7 @@
 # NanoGS: Training-Free Gaussian Splat Simplification
 
 <p align="center">
-  <strong>Simplify your GS in the browser</strong>
+  <strong>Simplify your GS in local browser</strong>
 </p>
 
 <p align="center">
@@ -13,9 +13,13 @@
   <a href="https://arxiv.org/pdf/2603.16103">
     <img src="https://img.shields.io/badge/Paper-PDF-blue?style=for-the-badge&logo=adobeacrobatreader" alt="Paper PDF">
   </a>
-  <!-- Project page / Web app -->
+  <!-- Project page -->
+  <a href="https://saliteta.github.io/NanoGS/">
+    <img src="https://img.shields.io/badge/Project-Page-1abc9c?style=for-the-badge&logo=googlechrome" alt="Project page">
+  </a>
+  <!-- Web app -->
   <a href="https://rongliu-leo.github.io/NanoGS/">
-    <img src="https://img.shields.io/badge/Project-Web%20Demo-1abc9c?style=for-the-badge&logo=googlechrome" alt="Project page">
+    <img src="https://img.shields.io/badge/Web-App-3498db?style=for-the-badge&logo=googlechrome" alt="Web App">
   </a>
   <!-- Code (Python) -->
   <a href="https://github.com/saliteta/NanoGS">
