@@ -299,11 +299,81 @@ html, body {
 
 #brand-badges {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 6px;
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
+}
+
+.brand-badge-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
+}
+
+.brand-bibtex-summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 500;
+  user-select: none;
+  margin-top: 8px;
+}
+
+.brand-bibtex-summary::-webkit-details-marker,
+.brand-bibtex-summary::marker {
+  display: none;
+}
+
+.brand-bibtex-summary::before {
+  content: "▶";
+  font-size: 8px;
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+
+#brand-bibtex[open] .brand-bibtex-summary::before {
+  transform: rotate(90deg);
+}
+
+.brand-bibtex-code {
+  margin: 0;
+  margin-top: 6px;
+  padding: 6px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* BibTeX scrollbar – match other subtle scrollbars */
+.brand-bibtex-code::-webkit-scrollbar {
+  height: 6px;
+}
+
+.brand-bibtex-code::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.brand-bibtex-code::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255,255,255,0.2);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+}
+
+.brand-bibtex-code::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.brand-bibtex-code {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
 }
 
 .brand-badge {
