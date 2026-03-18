@@ -817,4 +817,21 @@ function updateProgressVisual(progress01) {
   }
 }
 
+function fetchGitHubStars() {
+  document.querySelectorAll(".brand-badge[data-github-repo]").forEach((link) => {
+    const repo = link.getAttribute("data-github-repo");
+    const starsEl = link.querySelector(".brand-badge-stars");
+    if (!repo || !starsEl) return;
+    fetch(`https://api.github.com/repos/${repo}`, { headers: { Accept: "application/vnd.github.v3+json" } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.stargazers_count === "number") {
+          starsEl.textContent = ` ⭐ ${data.stargazers_count}`;
+        }
+      })
+      .catch(() => {});
+  });
+}
+
 boot();
+fetchGitHubStars();

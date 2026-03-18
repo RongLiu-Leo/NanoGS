@@ -297,6 +297,13 @@ html, body {
   text-decoration: underline;
 }
 
+.brand-cta {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 #brand-badges {
   display: flex;
   flex-direction: column;
@@ -388,12 +395,19 @@ html, body {
   border-radius: 6px;
   text-decoration: none;
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .brand-badge:hover {
   color: var(--accent);
   border-color: var(--accent-2);
   background: var(--accent-2);
+}
+
+.brand-badge-stars {
+  margin-left: 2px;
+  flex-shrink: 0;
 }
 
 #controls {
