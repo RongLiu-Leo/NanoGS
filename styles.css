@@ -715,6 +715,7 @@ html, body {
 }
 
 .control-group input[type="number"] {
+  appearance: textfield;
   -moz-appearance: textfield;
 }
 
@@ -1071,12 +1072,45 @@ html, body {
   #progress-panel {
     width: auto;
     flex: 0 0 auto;
-    height: 320px;
+    height: min(320px, calc(100dvh - 24px));
     padding: 12px;
   }
 
   .panel-card {
-    max-height: 320px;
+    max-height: min(320px, calc(100dvh - 24px));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* Panel custom scrollbar (mobile/tablet) */
+  .panel-card::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .panel-card::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .panel-card::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255,255,255,0.18);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.35);
+  }
+
+  .panel-card::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.28);
+  }
+
+  .panel-card {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.18) transparent;
+  }
+
+  /* Prefer a single scrollbar for the whole panel on small screens */
+  #track-list {
+    overflow: visible;
+    flex: 0 0 auto;
+    padding-right: 0;
   }
 }
 
