@@ -68,6 +68,20 @@ The app uses **Three.js** for the scene/camera, **Spark** ([@sparkjsdev/spark](h
 1. **Scene size**: Due to the underlying KD-tree JavaScript library, the web app may not handle very large Gaussian splat scenes reliably (e.g., \(>\) 5M splats). For large-scale scenes, please refer to the **Python implementation** instead: [`https://github.com/saliteta/NanoGS`](https://github.com/saliteta/NanoGS).  
 2. **Very thin Gaussians**: Spark’s internal quantization can struggle to faithfully render extremely thin Gaussians. The **simplification algorithm itself still works correctly**, but if you want better visual quality for such cases, consider viewing the output with [SuperSplat](https://superspl.at/editor) or another high-fidelity splat renderer.
 
+## Citation
+If you find our code or paper helps, please consider giving us a star or citing:
+```bibtex
+@misc{xiong2026nanogstrainingfreegaussiansplat,
+    title={NanoGS: Training-Free Gaussian Splat Simplification}, 
+    author={Butian Xiong and Rong Liu and Tiantian Zhou and Meida Chen and Zhiwen Fan and Andrew Feng},
+    year={2026},
+    eprint={2603.16103},
+    archivePrefix={arXiv},
+    primaryClass={cs.CV},
+    url={https://arxiv.org/abs/2603.16103}, 
+}
+}
+```
 
 ## License
 
