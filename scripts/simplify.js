@@ -1323,7 +1323,7 @@ export function stateToPlyBytes(state) {
   const shDim = state.shDim ?? 3;
   const numFRest = fRestCountFromShDim(shDim);
   const vertexSize =
-    3 + 3 + 1 + 1 + 3 + 4 + numFRest; // xyz, f_dc_0..2, opacity, scale_0..2, rot_0..3, f_rest (0/9/24/45)
+    3 + 3 + 1 + 3 + 4 + numFRest; // xyz, f_dc_0..2, opacity, scale_0..2, rot_0..3, f_rest (0/9/24/45)
   const vertexBytes = vertexSize * 4; // 4 bytes per float
   const headerLines = [
     "ply",
